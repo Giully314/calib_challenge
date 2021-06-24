@@ -21,14 +21,54 @@ BlockArgs = collections.namedtuple("BlockArgs", [
 
 GlobalParams = collections.namedtuple("GlobalParams", [
     "width_coeff", "depth_coeff", "image_size", "droupout",
-    "recurrent_layers", "hidden_dim", 
-    "fc_layers",    
+    "in_channels", "out_channels", "kernel_size", "stride", #first layer of the conv 
+    "final_pooling_layer",
+    "num_   recurrent_layers", "hidden_dim", #recurrent networks for temporal dependencies 
+    "fc_layers", #fully connected layers
 ])
 
 
 GlobalParams.__new__.__defaults__ = (None,) * len(GlobalParams._fields)
 BlockArgs.__new__.__defaults__ = (None,) * len(BlockArgs._fields)
 
+#from pytorch implementation of EfficientNet https://github.com/lukemelas/EfficientNet-PyTorch
+def round_repeats(repeats, global_params):
+    multiplier = global_params.depth_coeff
+    if not multiplier:
+        return repeats
+    return int(math.ceil(multiplier * repeats))
+
+
+#from pytorch implementation of EfficientNet https://github.com/lukemelas/EfficientNet-PyTorch
+def round_filters(filters, global_params):
+    multiplier = global_params.width_coeff
+    if not multiplier:
+        return filters
+
+    new_filters = filters * multiplier
+    
+    if new_filters < 0.9 * filters:
+        new_filters = filters
+
+    return int(new_filters)
+
+
+def get_width_and_height(x):
+    if isinstance(x, int):
+        return x, x
+    if isinstance(x, list) or isinstance(x, tuple):
+        return x
+    else:
+        raise TypeError()
+
+def calculate_output_image_size(input_image_size, stride):
+    if input_image_size is None:
+        return None
+    image_height, image_width = get_width_and_heigh(input_image_size)
+    stride = stride if isinstance(stride, int) else stride[0]
+    image_height = int(math.ceil(image_height / stride))
+    image_width = int(math.ceil(image_width / stride))
+    return [image_height, image_width]
 
 
 def conv1x1(in_channels: int, out_channels: int, stride: int = 1) -> nn.Conv2d:
@@ -253,23 +293,6 @@ def create_dirs(dirs: list[str]) -> None:
     for dir in dirs:
         create_dir(dir)
 
-
-def get_width_and_height(x):
-    if isinstance(x, int):
-        return x, x
-    if isinstance(x, list) or isinstance(x, tuple):
-        return x
-    else:
-        raise TypeError()
-
-def calculate_output_image_size(input_image_size, stride):
-    if input_image_size is None:
-        return None
-    image_height, image_width = get_width_and_heigh(input_image_size)
-    stride = stride if isinstance(stride, int) else stride[0]
-    image_height = int(math.ceil(image_height / stride))
-    image_width = int(math.ceil(image_width / stride))
-    return [image_height, image_width]
 
 #UTILITY
 
