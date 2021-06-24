@@ -12,6 +12,41 @@ import shutil
 from pathlib import Path
 import time
 
+
+BlockArgs = collections.namedtuple("BlockArgs", [
+            "num_repeat", "in_channels", "out_channels", "kernel_size", "stride",
+            "activation_fun", 
+])
+
+
+GlobalParams = collections.namedtuple("GlobalParams", [
+    "width_coeff", "depth_coeff", "image_size", "droupout",
+    "recurrent_layers", "hidden_dim", 
+    "fc_layers",    
+])
+
+
+GlobalParams.__new__.__defaults__ = (None,) * len(GlobalParams._fields)
+BlockArgs.__new__.__defaults__ = (None,) * len(BlockArgs._fields)
+
+
+
+def conv1x1(in_channels: int, out_channels: int, stride: int = 1) -> nn.Conv2d:
+    return nn.Conv2d(in_channels, out_channels, 1, stride=stride)
+
+def conv(in_channels: int, out_channels: int, kernel_size: int, stride: int = 1) -> nn.Conv2d:
+    return nn.Conv2d(in_channels, out_channels, kernel_size, stride=stride, padding=1)
+
+
+class RMSELoss(nn.Module):
+    def __init__(self):
+        super(RMSELoss, self).__init__()
+
+    def forward(self, output, target):
+        return torch.sqrt(F.mse_loss(output, target) + 1e-6)
+
+
+
 #UTILITY 
 
 def timer(func):
@@ -217,6 +252,24 @@ def create_dir(dir: str) -> None:
 def create_dirs(dirs: list[str]) -> None:
     for dir in dirs:
         create_dir(dir)
+
+
+def get_width_and_height(x):
+    if isinstance(x, int):
+        return x, x
+    if isinstance(x, list) or isinstance(x, tuple):
+        return x
+    else:
+        raise TypeError()
+
+def calculate_output_image_size(input_image_size, stride):
+    if input_image_size is None:
+        return None
+    image_height, image_width = get_width_and_heigh(input_image_size)
+    stride = stride if isinstance(stride, int) else stride[0]
+    image_height = int(math.ceil(image_height / stride))
+    image_width = int(math.ceil(image_width / stride))
+    return [image_height, image_width]
 
 #UTILITY
 
