@@ -21,17 +21,17 @@ class ConvBlock(nn.Module):
         self.block_args = block_args
 
         self.conv_block = nn.Sequential(
-            conv(self.block_args.in_channel, self.block_args.out_channel, self.block_args.stride),
-            nn.BatchNorm2d(self.block_args.out_channel),
+            conv(self.block_args.in_channels, self.block_args.out_channels, self.block_args.kernel_size, self.block_args.stride),
+            nn.BatchNorm2d(self.block_args.out_channels),
             self.block_args.activation_fun,
-            conv(self.block_args.out_channel, self.block_args.out_channel),
-            nn.BatchNorm2d(self.block_args.out_channel),
+            conv(self.block_args.out_channels, self.block_args.out_channels, self.block_args.kernel_size,),
+            nn.BatchNorm2d(self.block_args.out_channels),
         )
         
         self.activation_fun = self.block_args.activation_fun
         self.proj = nn.Sequential(
-            conv1x1(self.block_args.in_channel, self.block_args.out_channel, self.block_args.stride),
-            nn.BatchNorm2d(self.block_args.out_channel))
+            conv1x1(self.block_args.in_channels, self.block_args.out_channels, self.block_args.stride),
+            nn.BatchNorm2d(self.block_args.out_channels))
         
         
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -58,7 +58,7 @@ class Endurance(nn.Module):
             nn.Conv2d(self.global_params.in_channels, self.global_params.out_channels, self.global_params.kernel_size, 
             self.global_params.stride),
             nn.BatchNorm2d(self.global_params.out_channels),
-            self.ReLU()
+            nn.ReLU(),  
         )
 
         self.conv_blocks = nn.ModuleList([])
@@ -67,9 +67,9 @@ class Endurance(nn.Module):
     
         for block_args in self.blocks_args:
             block_args = block_args._replace(
-                input_filters=round_filters(block_args.in_channels, self._global_params),
-                output_filters=round_filters(block_args.out_channels, self._global_params),
-                num_repeat=round_repeats(block_args.num_repeat, self._global_params)
+                in_channels=round_filters(block_args.in_channels, self.global_params),
+                out_channels=round_filters(block_args.out_channels, self.global_params),
+                num_repeat=round_repeats(block_args.num_repeat, self.global_params)
             )
             self.conv_blocks.append(ConvBlock(block_args))
 
@@ -77,9 +77,9 @@ class Endurance(nn.Module):
 
 
             if block_args.num_repeat > 1:  # modify block_args to keep same output size
-                block_args = block_args._replace(input_filters=block_args.out_channels, stride=1)
+                block_args = block_args._replace(in_channels=block_args.out_channels, stride=1)
             for _ in range(block_args.num_repeat - 1):
-                self.conv_blocks.append(block_args)
+                self.conv_blocks.append(ConvBlock(block_args))
 
         cnn_shape_out = img_size[0] * img_size[1] * self.blocks_args[-1].out_channels
 
@@ -98,9 +98,11 @@ class Endurance(nn.Module):
 
         self.fc_layers = nn.ModuleList([])
         self.fc_layers.append(nn.Linear(self.hidden_dim, self.global_params.fc_layers[0]))
-        for i, fc_layer in enumerate(self.global_params.fc_layers[1:]):
+        for i, fc_layer in enumerate(self.global_params.fc_layers[1:-1]):
             self.fc_layers.append(nn.Linear(self.global_params.fc_layers[i-1], fc_layer))
+            self.fc_layers.append(nn.ReLU())
 
+        self.fc_layers.append(nn.Linear(self.global_params.fc_layers[-2], self.global_params.fc_layers[-1]))
 
     def extract_features(self, x):
         #Apply conv
