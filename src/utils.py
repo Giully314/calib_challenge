@@ -22,10 +22,10 @@ BlockArgs = collections.namedtuple("BlockArgs", [
 
 GlobalParams = collections.namedtuple("GlobalParams", [
     "width_coeff", "depth_coeff", "image_size",
-    "in_channels", "out_channels", "kernel_size", "stride", #first layer of the conv 
+    "in_channels", "out_channels", "kernel_size", "stride", "pooling", #first layer of the conv 
     "final_pooling_layer",
     "num_recurrent_layers", "hidden_dim", "rec_dropout", #recurrent networks for temporal dependencies 
-    "droupout",
+    "dropout",
     "fc_layers", #fully connected layers (tuple of ints)
 ])
 
@@ -78,6 +78,10 @@ def conv1x1(in_channels: int, out_channels: int, stride: int = 1) -> nn.Conv2d:
 
 def conv(in_channels: int, out_channels: int, kernel_size: int, stride: int = 1) -> nn.Conv2d:
     return nn.Conv2d(in_channels, out_channels, kernel_size, stride=stride, padding=1)
+
+def conv_layer(in_channels: int, out_channels: int, kernel_size: int, stride: int, bn_kernel: int, bn_stride: int, 
+                pl_kernel: int, pl_stride: int):
+    return conv(in_channels, out_channels, kernel_size, stride), nn.BatchNorm2d(bn_kernel, bn_stride), nn.MaxPool2d(pl_kernel, pl_stride)
 
 
 class RMSELoss(nn.Module):
