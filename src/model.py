@@ -1,6 +1,7 @@
 import torch
 from torch import nn
-
+import functools 
+import operator
 from utils import (
     conv1x1, 
     conv,
@@ -20,7 +21,7 @@ class ConvBlock(nn.Module):
         super(ConvBlock, self).__init__()
         self.block_args = block_args
 
-        self.conv_block = nn.Sequential(
+        self.conv = nn.Sequential(
             conv(self.block_args.in_channels, self.block_args.out_channels, self.block_args.kernel_size, self.block_args.stride),
             nn.BatchNorm2d(self.block_args.out_channels),
             self.block_args.activation_fun,
@@ -37,7 +38,7 @@ class ConvBlock(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         identity = self.proj(x)
 
-        out = self.conv_block(out)
+        out = self.conv(x)
         out += identity
         out = self.activation_fun(out)
         
@@ -54,18 +55,13 @@ class Endurance(nn.Module):
         self.blocks_args = blocks_args
         self.global_params = global_params
 
-        self.first_cnn_layer = nn.Sequential(
-            nn.Conv2d(self.global_params.in_channels, self.global_params.out_channels, self.global_params.kernel_size, 
-            self.global_params.stride),
-            nn.BatchNorm2d(self.global_params.out_channels),
-            nn.ReLU(),  
-            self.global_params.pooling,
-        )
+        self.conv_first_layers = nn.ModuleList([])
 
-        self.conv_blocks = nn.ModuleList([])
-
-        img_size = self.global_params.image_size
+        for conv_layer in self.global_params.conv_layers:
+            for layer in conv_layer:
+                self.conv_first_layers.append(layer)
     
+        self.conv_blocks = nn.ModuleList([])
         for i, block_args in enumerate(self.blocks_args):
             block_args = block_args._replace(
                 in_channels=round_filters(block_args.in_channels, self.global_params),
@@ -74,15 +70,21 @@ class Endurance(nn.Module):
             )
             self.conv_blocks.append(ConvBlock(block_args))
 
-            img_size = calculate_output_image_size(img_size, block_args.stride)
-
             if block_args.num_repeat > 1:  # modify block_args to keep same output size
                 block_args = block_args._replace(in_channels=block_args.out_channels, stride=1)
             for _ in range(block_args.num_repeat - 1):
                 self.conv_blocks.append(ConvBlock(block_args))
-                pass
 
-        cnn_shape_out = img_size[0] * img_size[1] * self.blocks_args[-1].out_channels
+        for conv_block in self.conv_blocks:
+            if conv_block is None:
+                print("porca puttana")
+                return
+        
+        h, w = self.global_params.image_size
+        out = self.extract_features(torch.zeros(1, 1, 3, h, w))
+        cnn_shape_out = functools.reduce(operator.mul, list(out.shape))
+
+        print(f"out shape {out.shape}")
         print(f"cnn_shape_out: {cnn_shape_out}")
         return #ATTENZIONE AHAKJFLKSDFLJAHS
 
@@ -107,16 +109,20 @@ class Endurance(nn.Module):
 
         self.fc_layers.append(nn.Linear(self.global_params.fc_layers[-2], self.global_params.fc_layers[-1]))
 
+
+
     def extract_features(self, x):
         #Apply conv
         bs, ts, c, h, w = x.shape
         
         processed_frames = []
         for i in range(ts):
-            out = self.first_cnn_layer(x[:, i])
+            out = x[:, i]
+            for conv_layer in self.conv_first_layers:
+                out = conv_layer(out)
 
             for conv_block in self.conv_blocks:
-                out = self.conv_blocks(out)
+                out = conv_block(out)
 
             processed_frames.append(out)
 
