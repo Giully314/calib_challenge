@@ -59,13 +59,14 @@ class Endurance(nn.Module):
             self.global_params.stride),
             nn.BatchNorm2d(self.global_params.out_channels),
             nn.ReLU(),  
+            self.global_params.pooling,
         )
 
         self.conv_blocks = nn.ModuleList([])
 
         img_size = self.global_params.image_size
     
-        for block_args in self.blocks_args:
+        for i, block_args in enumerate(self.blocks_args):
             block_args = block_args._replace(
                 in_channels=round_filters(block_args.in_channels, self.global_params),
                 out_channels=round_filters(block_args.out_channels, self.global_params),
@@ -75,23 +76,24 @@ class Endurance(nn.Module):
 
             img_size = calculate_output_image_size(img_size, block_args.stride)
 
-
             if block_args.num_repeat > 1:  # modify block_args to keep same output size
                 block_args = block_args._replace(in_channels=block_args.out_channels, stride=1)
             for _ in range(block_args.num_repeat - 1):
                 self.conv_blocks.append(ConvBlock(block_args))
+                pass
 
         cnn_shape_out = img_size[0] * img_size[1] * self.blocks_args[-1].out_channels
+        print(f"cnn_shape_out: {cnn_shape_out}")
+        return #ATTENZIONE AHAKJFLKSDFLJAHS
 
         self.pooling_layer = self.global_params.final_pooling_layer
         self.flatten = nn.Flatten(1)
 
         self.hidden_dim = self.global_params.hidden_dim
         self.lstm_num_layers = self.global_params.num_recurrent_layers
-        self.lstm = nn.LSTM(cnn_shape_out, self.hidden_dim, num_layers=self.lstm_num_layers, dropout=self.global_params.rec_dropout)
-        self.hidden_state = torch.zeros(self.lstm_num_layers, 1, self.hidden_dim, device=dev)
-        self.cell_state = torch.zeros(self.lstm_num_layers, 1, self.hidden_dim, device=dev)
-
+        # self.lstm = nn.LSTM(cnn_shape_out, self.hidden_dim, num_layers=self.lstm_num_layers, dropout=self.global_params.rec_dropout)
+        self.hidden_state = torch.zeros(self.lstm_num_layers, 1, self.hidden_dim)
+        self.cell_state = torch.zeros(self.lstm_num_layers, 1, self.hidden_dim)
 
         self.dropout = nn.Dropout(self.global_params.dropout)
         
@@ -101,6 +103,7 @@ class Endurance(nn.Module):
         for i, fc_layer in enumerate(self.global_params.fc_layers[1:-1]):
             self.fc_layers.append(nn.Linear(self.global_params.fc_layers[i-1], fc_layer))
             self.fc_layers.append(nn.ReLU())
+            pass
 
         self.fc_layers.append(nn.Linear(self.global_params.fc_layers[-2], self.global_params.fc_layers[-1]))
 
@@ -122,6 +125,11 @@ class Endurance(nn.Module):
     def forward(self, x):
         return extract_features(x)
 
+    #bad, DON'T DO THIS 
+    def to(dev):
+        super().to(dev)
+        self.hidden_state = self.hidden_state.to(dev)
+        self.cell_state = self.cell_state.to(dev)
     
     def zero_hidden(self):
         self.hidden_state, self.cell_state = (torch.zeros(self.lstm_num_layers, 1, self.hidden_dim, device=dev),
