@@ -66,7 +66,7 @@ def get_width_and_height(x):
 def calculate_output_image_size(input_image_size, stride):
     if input_image_size is None:
         return None
-    image_height, image_width = get_width_and_heigh(input_image_size)
+    image_height, image_width = get_width_and_height(input_image_size)
     stride = stride if isinstance(stride, int) else stride[0]
     image_height = int(math.ceil(image_height / stride))
     image_width = int(math.ceil(image_width / stride))
