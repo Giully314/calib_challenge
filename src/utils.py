@@ -20,11 +20,12 @@ BlockArgs = collections.namedtuple("BlockArgs", [
 
 
 GlobalParams = collections.namedtuple("GlobalParams", [
-    "width_coeff", "depth_coeff", "image_size", "droupout",
+    "width_coeff", "depth_coeff", "image_size",
     "in_channels", "out_channels", "kernel_size", "stride", #first layer of the conv 
     "final_pooling_layer",
-    "num_   recurrent_layers", "hidden_dim", #recurrent networks for temporal dependencies 
-    "fc_layers", #fully connected layers
+    "num_   recurrent_layers", "hidden_dim", "rec_dropout", #recurrent networks for temporal dependencies 
+    "droupout",
+    "fc_layers", #fully connected layers (tuple of ints)
 ])
 
 
