@@ -74,19 +74,13 @@ class Endurance(nn.Module):
                 block_args = block_args._replace(in_channels=block_args.out_channels, stride=1)
             for _ in range(block_args.num_repeat - 1):
                 self.conv_blocks.append(ConvBlock(block_args))
-
-        for conv_block in self.conv_blocks:
-            if conv_block is None:
-                print("porca puttana")
-                return
         
         h, w = self.global_params.image_size
         out = self.extract_features(torch.zeros(1, 1, 3, h, w))
         cnn_shape_out = functools.reduce(operator.mul, list(out.shape))
 
-        print(f"out shape {out.shape}")
-        print(f"cnn_shape_out: {cnn_shape_out}")
-        return #ATTENZIONE AHAKJFLKSDFLJAHS
+        # print(f"out shape {out.shape}")
+        # print(f"cnn_shape_out: {cnn_shape_out}")
 
         self.pooling_layer = self.global_params.final_pooling_layer
         self.flatten = nn.Flatten(1)
