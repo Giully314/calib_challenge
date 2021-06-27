@@ -76,12 +76,22 @@ def calculate_output_image_size(input_image_size, stride):
 def conv1x1(in_channels: int, out_channels: int, stride: int = 1) -> nn.Conv2d:
     return nn.Conv2d(in_channels, out_channels, 1, stride=stride)
 
-def conv(in_channels: int, out_channels: int, kernel_size: int, stride: int = 1) -> nn.Conv2d:
+def conv2d(in_channels: int, out_channels: int, kernel_size: int, stride: int = 1) -> nn.Conv2d:
     return nn.Conv2d(in_channels, out_channels, kernel_size, stride=stride, padding=1)
 
-def conv_layer(in_channels: int, out_channels: int, kernel_size: int, stride: int, pl_kernel: int, pl_stride: int):
-    return (conv(in_channels, out_channels, kernel_size, stride), nn.BatchNorm2d(out_channels), 
+def conv2d_layer(in_channels: int, out_channels: int, kernel_size: int, stride: int, pl_kernel: int, pl_stride: int):
+    return (conv2d(in_channels, out_channels, kernel_size, stride), nn.BatchNorm2d(out_channels), 
             nn.ReLU(), nn.MaxPool2d(pl_kernel, pl_stride))
+
+
+def conv3d(in_channels: int, out_channels: int, kernel_size: int, stride: int = 1) -> nn.Conv3d:
+    return nn.Conv3d(in_channels, out_channels, kernel_size, stride, padding=1)
+
+def conv3d_layer(in_channels: int, out_channels: int, kernel_size: int, stride: int, pl_kernel: int, pl_stride: int):
+    return (conv3d(in_channels, out_channels, kernel_size, stride), nn.BatchNorm3d(out_channels), 
+            nn.ReLU(), nn.MaxPool3d(pl_kernel, pl_stride))
+
+
 
 
 class RMSELoss(nn.Module):
@@ -298,6 +308,29 @@ def create_dir(dir: str) -> None:
 def create_dirs(dirs: list[str]) -> None:
     for dir in dirs:
         create_dir(dir)
+
+
+def copy_last_n_frames(src, dest, n):
+    src_num = num_of_tensors_in_dir(src)
+    dest_num = num_of_tensors_in_dir(dest)
+
+    
+    for i in range(dest_num - 1, -1, -1):
+        shutil.move(os.path.join(dest, str(i) + ".pt"), 
+                    os.path.join(dest, str(i + n) + ".pt"))
+        
+    src_angles = read_angles(os.path.join(src, "angles.txt"))[-5:]
+    dest_angles = read_angles(os.path.join(dest, "angles.txt"))
+
+    write_angles(os.path.join(dest, "aug_angles.txt"), src_angles + dest_angles)
+
+
+    j = 0
+    for i in range(src_num - n, src_num):
+        shutil.copy(os.path.join(src, str(i) + ".pt"),
+                    os.path.join(dest, str(j) + ".pt"))
+        j += 1
+
 
 
 #UTILITY

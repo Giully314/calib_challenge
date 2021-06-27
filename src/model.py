@@ -9,9 +9,12 @@ from utils import (
     GlobalParams,
     round_filters,
     round_repeats,
-    calculate_output_image_size,
-    get_width_and_height,
 )
+
+
+class Conv3dBlock(nn.Module):
+    def __init__(self, block_args: BlockArgs):
+        pass
 
 
 
@@ -75,19 +78,16 @@ class Endurance(nn.Module):
             for _ in range(block_args.num_repeat - 1):
                 self.conv_blocks.append(ConvBlock(block_args))
         
+
+        self.pooling_layer = self.global_params.final_pooling_layer
+        self.flatten = nn.Flatten(1)
         h, w = self.global_params.image_size
         out = self.extract_features(torch.zeros(1, 1, 3, h, w))
         cnn_shape_out = functools.reduce(operator.mul, list(out.shape))
 
-        # print(f"out shape {out.shape}")
-        # print(f"cnn_shape_out: {cnn_shape_out}")
-
-        self.pooling_layer = self.global_params.final_pooling_layer
-        self.flatten = nn.Flatten(1)
-
         self.hidden_dim = self.global_params.hidden_dim
         self.lstm_num_layers = self.global_params.num_recurrent_layers
-        # self.lstm = nn.LSTM(cnn_shape_out, self.hidden_dim, num_layers=self.lstm_num_layers, dropout=self.global_params.rec_dropout)
+        self.lstm = nn.LSTM(cnn_shape_out, self.hidden_dim, num_layers=self.lstm_num_layers, dropout=self.global_params.rec_dropout)
         self.hidden_state = torch.zeros(self.lstm_num_layers, 1, self.hidden_dim)
         self.cell_state = torch.zeros(self.lstm_num_layers, 1, self.hidden_dim)
 
@@ -117,6 +117,9 @@ class Endurance(nn.Module):
 
             for conv_block in self.conv_blocks:
                 out = conv_block(out)
+
+            out = self.pooling_layer(out)
+            out = self.flatten(out)
 
             processed_frames.append(out)
 
