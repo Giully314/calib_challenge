@@ -4,7 +4,7 @@ import functools
 import operator
 from utils import (
     conv1x1, 
-    conv,
+    conv2d,
     BlockArgs,
     GlobalParams,
     round_filters,
@@ -14,7 +14,31 @@ from utils import (
 
 class Conv3dBlock(nn.Module):
     def __init__(self, block_args: BlockArgs):
-        pass
+        super(ConvBlock, self).__init__()
+        self.block_args = block_args
+
+        self.conv = nn.Sequential(
+            conv2d(self.block_args.in_channels, self.block_args.out_channels, self.block_args.kernel_size, self.block_args.stride),
+            nn.BatchNorm2d(self.block_args.out_channels),
+            self.block_args.activation_fun,
+            conv2d(self.block_args.out_channels, self.block_args.out_channels, self.block_args.kernel_size,),
+            nn.BatchNorm2d(self.block_args.out_channels),
+        )
+        
+        self.activation_fun = self.block_args.activation_fun
+        self.proj = nn.Sequential(
+            conv1x1(self.block_args.in_channels, self.block_args.out_channels, self.block_args.stride),
+            nn.BatchNorm2d(self.block_args.out_channels))
+        
+        
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        identity = self.proj(x)
+
+        out = self.conv(x)
+        out += identity
+        out = self.activation_fun(out)
+        
+        return out
 
 
 
@@ -25,10 +49,10 @@ class ConvBlock(nn.Module):
         self.block_args = block_args
 
         self.conv = nn.Sequential(
-            conv(self.block_args.in_channels, self.block_args.out_channels, self.block_args.kernel_size, self.block_args.stride),
+            conv2d(self.block_args.in_channels, self.block_args.out_channels, self.block_args.kernel_size, self.block_args.stride),
             nn.BatchNorm2d(self.block_args.out_channels),
             self.block_args.activation_fun,
-            conv(self.block_args.out_channels, self.block_args.out_channels, self.block_args.kernel_size,),
+            conv2d(self.block_args.out_channels, self.block_args.out_channels, self.block_args.kernel_size,),
             nn.BatchNorm2d(self.block_args.out_channels),
         )
         
@@ -77,10 +101,6 @@ class Endurance(nn.Module):
                 block_args = block_args._replace(in_channels=block_args.out_channels, stride=1)
             for _ in range(block_args.num_repeat - 1):
                 self.conv_blocks.append(ConvBlock(block_args))
-
-
-        self.pooling_layer = self.global_params.final_pooling_layer
-        self.flatten = nn.Flatten(1)
         
 
         self.pooling_layer = self.global_params.final_pooling_layer
@@ -103,7 +123,6 @@ class Endurance(nn.Module):
         for i, fc_layer in enumerate(self.global_params.fc_layers[1:-1]):
             self.fc_layers.append(nn.Linear(self.global_params.fc_layers[i-1], fc_layer))
             self.fc_layers.append(nn.ReLU())
-            pass
 
         self.fc_layers.append(nn.Linear(self.global_params.fc_layers[-2], self.global_params.fc_layers[-1]))
 
@@ -130,14 +149,25 @@ class Endurance(nn.Module):
         return torch.stack(processed_frames)
 
     def forward(self, x):
-        return extract_features(x)
+        out = self.extract_features(x)
+        out, _ = self.lstm(out)
+        out = out.permute(1, 0, 2)
+        
+        out = out[:, -1]
+        out = self.dropout(out)
+
+        for fc_layer in self.fc_layers:
+            out = fc_layer(out)
+
+        return out
 
     #bad, DON'T DO THIS 
-    def to(dev):
+    def to(self, dev):
         super().to(dev)
         self.hidden_state = self.hidden_state.to(dev)
         self.cell_state = self.cell_state.to(dev)
     
+    #todo: batch dimension
     def zero_hidden(self):
-        self.hidden_state, self.cell_state = (torch.zeros(self.lstm_num_layers, 1, self.hidden_dim, device=dev),
-                                                torch.zeros(self.lstm_num_layers, 1, self.hidden_dim, device=dev))
+        self.hidden_state = torch.zeros(self.lstm_num_layers, 1, self.hidden_dim, device=self.hidden_state.device)
+        self.cell_state = torch.zeros(self.lstm_num_layers, 1, self.hidden_dim, device=self.cell_state.device)
