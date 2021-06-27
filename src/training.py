@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import time 
 from ray import tune
+from utils import RMSELoss
 
 def loss_batch(model, loss_func, xb, yb, opt=None):
     loss = loss_func(model(xb), yb)
@@ -64,8 +65,8 @@ def fit_hyper_params(config, data_dir):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     model = Endurance(c1=config['c1'], l1=config['l1'], l2=config['l2'])
     model.to(device)
-    opt = torch.optim.SGD(model.parameters(), lr=config['lr'], momentum=config['momentum'])
-    loss_func = RMSELoss() 
+    opt = torch.optim.AdamW(model.parameters(), lr=config['lr'])
+    loss_func = ut. 
 
     train_dir = os.path.join(data_dir, "train")
     valid_dir = os.path.join(data_dir, "valid")
