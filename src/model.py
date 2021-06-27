@@ -9,9 +9,12 @@ from utils import (
     GlobalParams,
     round_filters,
     round_repeats,
-    calculate_output_image_size,
-    get_width_and_height,
 )
+
+
+class Conv3dBlock(nn.Module):
+    def __init__(self, block_args: BlockArgs):
+        pass
 
 
 
@@ -79,14 +82,12 @@ class Endurance(nn.Module):
         self.pooling_layer = self.global_params.final_pooling_layer
         self.flatten = nn.Flatten(1)
         
+
+        self.pooling_layer = self.global_params.final_pooling_layer
+        self.flatten = nn.Flatten(1)
         h, w = self.global_params.image_size
         out = self.extract_features(torch.zeros(1, 1, 3, h, w))
         cnn_shape_out = functools.reduce(operator.mul, list(out.shape))
-
-        print(f"out shape {out.shape}")
-        print(f"cnn_shape_out: {cnn_shape_out}")
-
-        return
 
         self.hidden_dim = self.global_params.hidden_dim
         self.lstm_num_layers = self.global_params.num_recurrent_layers
