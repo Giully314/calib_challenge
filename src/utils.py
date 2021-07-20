@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
+from dataclasses import dataclass
 
 
 #TODO REVISITE THE NEXT 9 FUNCTIONS
@@ -129,6 +130,21 @@ def timer(func):
         return value
     return wrapper_timer
 
+@dataclass
+class Timer:
+    s: float = 0
+    e: float = 0
+
+    def start(self):
+        self.s = time.time()
+
+    def end(self):
+        self.e = time.time()
+
+    def __str__(self):
+        total_time = self.e - self.s 
+        return f"{(total_time//60):.0f}m {(total_time % 60):.0f}s"
+    
 
 
 def inference_and_save(model, dl, output):
