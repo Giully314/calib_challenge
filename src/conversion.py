@@ -133,12 +133,12 @@ print("Start split data.")
 timer.start()
 fp.split_train_valid_test(outputs, data_dir, train_split, test_split, num_of_cpu=num_of_cpu)
 timer.end()
-print("Finished split data in {timer}.")
+print(f"Finished split data in {timer}.")
 
 
 #augment data
 basic_train_dir = os.path.join(data_dir, "basic_train")
-inputs = [os.path.join(basic_train_dir, video_name) for video_name in video_names]
+inputs = [os.path.join(basic_train_dir, str(video_name)) for video_name in video_names]
 train_dir = os.path.join(data_dir, "train")
 ut.create_dir(train_dir)
 
@@ -150,7 +150,7 @@ ut.create_dirs(standard_dirs)
 fp.augment_videos(inputs, standard_dirs, trf_standard, num_of_cpu=num_of_cpu)
 count += len(standard_dirs)
 timer.end()
-print("Finished augment frames with standard transform in {timer}.")
+print(f"Finished augment frames with standard transform in {timer}.")
 
 
 merge_dirs = [*standard_dirs] #for merge
@@ -164,7 +164,7 @@ if trf_jitter is not None:
     fp.augment_videos(inputs, jitter_dirs, trf_jitter, num_of_cpu=num_of_cpu)
     count += len(jitter_dirs)
     timer.end()
-    print("Finished augment frames with jitter transform in {timer}.")
+    print(f"Finished augment frames with jitter transform in {timer}.")
 
 if trf_rotation is not None:
     print("Start augment frames with rotation transform.")
@@ -175,7 +175,7 @@ if trf_rotation is not None:
     fp.augment_videos(inputs, rotation_dirs, trf_rotation, num_of_cpu=num_of_cpu)
     count += len(rotation_dirs)
     timer.end()
-    print("Finished augment frames with rotation transform in {timer}.")
+    print(f"Finished augment frames with rotation transform in {timer}.")
 
 if trf_translate is not None:
     print("Start augment frames with translate transform.")
@@ -186,7 +186,7 @@ if trf_translate is not None:
     fp.augment_videos(inputs, translate_dirs, trf_translate, num_of_cpu=num_of_cpu)
     count += len(translate_dirs)
     timer.end()
-    print("Finished augment frames with translate transform in {timer}.")
+    print(f"Finished augment frames with translate transform in {timer}.")
 
 
 #normalize validation and test set
@@ -196,7 +196,7 @@ valid_dir = os.path.join(data_dir, "valid")
 valid_dirs = [os.path.join(valid_dir, d) for d in os.listdir(valid_dir) if os.path.isdir(d)]
 fp.augment_videos(valid_dirs, valid_dirs, trf_standard, num_of_cpu=num_of_cpu)
 timer.end()
-print("Finished normalize validation set in {timer}")
+print(f"Finished normalize validation set in {timer}")
 
 print("Start normalize test set.")
 timer.start()
@@ -204,7 +204,7 @@ test_dir = os.path.join(data_dir, "test")
 test_dirs = [os.path.join(test_dir, d) for d in os.listdir(test_dir) if os.path.isdir(d)]
 fp.augment_videos(test_dirs, test_dirs, trf_standard, num_of_cpu=num_of_cpu)
 timer.end()
-print("Finished normalize test set in {timer}")
+print(f"Finished normalize test set in {timer}")
 
 if merge:
     print("Start merge frames.")
@@ -214,5 +214,5 @@ if merge:
     fp.merge_frames(valid_dirs, os.path.join(data_dir), "valid_merged_frames")
     fp.merge_frames(test_dirs, os.path.join(data_dir), "test_merged_frames")
     timer.end()
-    print("Finished merge frames in {timer}.")
+    print(f"Finished merge frames in {timer}.")
 
