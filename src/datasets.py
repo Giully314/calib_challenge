@@ -58,9 +58,9 @@ def get_frame_ds(frames_dir: str, transform: T.Compose = None) -> FrameDataset:
 
 
 
-def get_dl(ds, batch_size=32, shuffle=False, num_of_workers=2, pin_memory=True) -> DataLoader:
+def get_dl(ds, batch_size=32, shuffle=False, num_workers=2, pin_memory=True) -> DataLoader:
     return DataLoader(ds, batch_size=batch_size, shuffle=shuffle, pin_memory=pin_memory, 
-                     num_of_workers=num_of_workers)
+                     num_workers=num_workers)
 
 
 
