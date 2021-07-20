@@ -5,6 +5,8 @@ import math
 import time
 import os 
 from pathlib import Path
+import matplotlib.pyplot as plt
+import numpy as np
 
 
 #TODO REVISITE THE NEXT 9 FUNCTIONS
@@ -140,3 +142,36 @@ def inference_and_save(model, dl, output):
 
 
 
+def plot_history(history: dict) -> None:
+    train_loss = history["train_loss"]
+    val_loss = history["val_loss"]
+
+    epochs = [i for i in range(len(train_loss))]
+    plt.plot(epochs, train_loss, "b-", label="TrainLoss")
+    plt.plot(epochs, val_loss, "g-", label="ValidLoss")
+    plt.legend(loc="center right", fontsize=12) 
+    plt.xlabel("Epoch", fontsize=16)
+    plt.ylabel("Loss", fontsize=16)
+    plt.axis([0, len(epochs)+1, 0, max(max(val_loss), max(train_loss)) +1])
+
+
+def plot_sqrt_history(history: dict) -> None:
+    train_loss = history["train_loss"]
+    val_loss = history["val_loss"]
+
+    epochs = [i for i in range(len(train_loss))]
+    plt.plot(epochs, np.sqrt(train_loss), "b-", label="TrainLoss")
+    plt.plot(epochs, np.sqrt(val_loss), "g-", label="ValidLoss")
+    plt.legend(loc="center right", fontsize=12) 
+    plt.xlabel("Epoch", fontsize=16)
+    plt.ylabel("sqrt loss", fontsize=16)
+    plt.axis([0, len(epochs)+1, 0, max(max(val_loss), max(train_loss)) +1])
+
+
+def save_history_img(history: dict, path: str) -> None:
+    plot_history(history)
+    plt.savefig(path)
+
+def save_sqrt_history_img(history: dict, path: str) -> None:
+    plot_sqrt_history(history)
+    plt.savefig(path)
