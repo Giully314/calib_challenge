@@ -64,6 +64,9 @@ def setup_videos(video_paths: list[str], output_paths: list[str], angles_paths: 
     f = functools.partial(_read_and_pair, transform=transform)
     with Pool(processes=num_of_cpu) as p:
         p.starmap(f, list(zip(video_paths, output_paths, angles_paths)))
+
+    # for video_path, output_path, angles_path in zip(video_paths, output_paths, angles_paths):
+    #     _read_and_pair(video_path, output_path, angles_path, transform)
         
 
 
