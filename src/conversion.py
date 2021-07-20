@@ -1,4 +1,5 @@
 import argparse
+from torch.utils import data
 from torchvision import transforms as T
 from torchvision.transforms import InterpolationMode
 import os
@@ -159,15 +160,20 @@ if trf_translate is not None:
     count += len(translate_dirs)
 
 
-if merge:
-    fp.merge_frames(merge_dirs, os.path.join(data_dir, "merged_frames"))
-
-
-
 #normalize validation and test set
 valid_dir = os.path.join(data_dir, "valid")
-fp.augment_videos(valid_dir, valid_dir, trf_standard, num_of_cpu=num_of_cpu)
+valid_dirs = [os.path.join(valid_dir, d) for d in os.listdir(valid_dir) if os.path.isdir(d)]
+fp.augment_videos(valid_dirs, valid_dirs, trf_standard, num_of_cpu=num_of_cpu)
 
 test_dir = os.path.join(data_dir, "test")
-fp.augment_videos(test_dir, test_dir, trf_standard, num_of_cpu=num_of_cpu)
+test_dirs = [os.path.join(test_dir, d) for d in os.listdir(test_dir) if os.path.isdir(d)]
+fp.augment_videos(test_dirs, test_dirs, trf_standard, num_of_cpu=num_of_cpu)
+
+
+if merge:
+    #TODO remove empty directories.
+    fp.merge_frames(merge_dirs, os.path.join(data_dir, "train_merged_frames"))
+    fp.merge_frames(valid_dirs, os.path.join(data_dir), "valid_merged_frames")
+    fp.merge_frames(test_dirs, os.path.join(data_dir), "test_merged_frames")
+
 
