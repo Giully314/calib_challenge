@@ -11,10 +11,12 @@ parser.add_argument("--cpus", type=int, default=2, help="Number of cores to use.
 parser.add_argument("-i", "--input", type=str, default=os.path.join("calib_challenge", "labeled"), help="Directory with videos.")
 parser.add_argument("-o", "--output", type=str, default="data", help="Output directory.")
 parser.add_argument("--videos", type=int, metavar="1 2 ... ", nargs='+', help="Videos to convert.")
+# parser.add_argument("-c", "--conversion_type", type=str, metavar="conversion type", help="Type of conversion: nvidia or temporal.")
 parser.add_argument("-h_div", "--height_divisor", type=float, metavar="H", default=3, help="Divisor of the height.")
 parser.add_argument("-w_div", "--width_divisor", type=float, metavar="W", default=3, help="Divisor of the width.")
 parser.add_argument("--train_split", type=float, metavar="train_split", default=0.8, help="A number between 0 and 1 for the train split.")
 parser.add_argument("--test_split", type=float, metavar="test_split", default=0.1, help="A number between 0 and 1 for the test split.")
+parser.add_argument("-m", "--merge", type=bool, metavar="merge", default=False, help="Merge the frames in one directory.")
 parser.add_argument("-j", "--jitter", type=float, metavar="b c s h", nargs="*", help="Specify color jitter. See pytorch doc.")
 parser.add_argument("-t", "--translate", type=float, metavar="th tw", nargs="*", help="Specify image translation. See pytorch doc.")
 parser.add_argument("-r", "--rotation", type=float, metavar="a1 a2", nargs="*", help="Specify image rotation. See pytorch doc.")
@@ -25,7 +27,10 @@ args = parser.parse_args()
 
 # print(args)
 
+conversion_type = args.conversion_type
+
 num_of_cpu = args.cpus
+merge = args.merge
 HEIGHT = 874 
 WIDTH = 1164
 height_div = args.height_divisor
@@ -130,23 +135,32 @@ fp.create_dirs(standard_dirs)
 fp.augment_videos(inputs, standard_dirs, trf_standard, num_of_cpu=num_of_cpu)
 count += len(standard_dirs)
 
+merge_dirs = [*standard_dirs] #for merge
+
 if trf_jitter is not None:
     jitter_dirs = [os.path.join(train_dir, str(video_name + count)) for video_name in video_names]
+    merge_dirs += jitter_dirs
     fp.create_dirs(jitter_dirs)
     fp.augment_videos(inputs, jitter_dirs, trf_jitter, num_of_cpu=num_of_cpu)
     count += len(jitter_dirs)
 
 if trf_rotation is not None:
     rotation_dirs = [os.path.join(train_dir, str(video_name + count)) for video_name in video_names]
+    merge_dirs += rotation_dirs
     fp.create_dirs(rotation_dirs)
     fp.augment_videos(inputs, rotation_dirs, trf_rotation, num_of_cpu=num_of_cpu)
     count += len(rotation_dirs)
 
 if trf_translate is not None:
     translate_dirs = [os.path.join(train_dir, str(video_name + count)) for video_name in video_names]
+    merge_dirs += translate_dirs
     fp.create_dirs(translate_dirs)
     fp.augment_videos(inputs, translate_dirs, trf_translate, num_of_cpu=num_of_cpu)
     count += len(translate_dirs)
+
+
+if merge:
+    fp.merge_frames(merge_dirs, os.path.join(data_dir, "merged_frames"))
 
 
 
