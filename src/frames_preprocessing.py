@@ -178,3 +178,16 @@ def copy_last_n_frames(src, dest, n):
         shutil.copy(os.path.join(src, str(i) + ".pt"),
                     os.path.join(dest, str(j) + ".pt"))
         j += 1
+
+
+def merge_frames(input_dirs, output_dir):
+    i = 0
+    angles = []
+    for input_dir in input_dirs:
+        for j in range(num_of_tensors_in_dir(input_dir)):
+            shutil.move(os.path.join(input_dir, str(j) + ".pt"), os.path.join(output_dir, str(i) + ".pt"))
+            i += 1
+
+        angles += read_angles(os.path.join(input_dir, "angles.txt"))
+    
+    write_angles(angles, os.path.join(output_dir, "angles.txt"))
