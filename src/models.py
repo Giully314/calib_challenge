@@ -208,7 +208,7 @@ class Endurance(nn.Module):
 
 class NvidiaModel(nn.Module):
     def __init__(self):
-        super(Endurance, self).__init__()
+        super(NvidiaModel, self).__init__()
 
         self.cnn = nn.Sequential(
             nn.BatchNorm2d(3),
