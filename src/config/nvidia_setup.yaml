@@ -1,0 +1,14 @@
+conversion:
+  cpus: 3
+  input: calib_challenge/labeled
+  output: data
+  videos: [0, 1, 2, 3, 4]
+  height_divisor: 3
+  width_divisor: 3
+  train_split: 0.8
+  test_split: 0.1
+  merge: True
+  jitter: [[3, 3], [0, 1], [1, 1], [0, 0]]
+  translate: [0.1, 0.1]
+  rotation: [-10, 10]
+  crop: [25, 350, 125, 231]
