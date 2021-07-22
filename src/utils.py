@@ -8,6 +8,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 from dataclasses import dataclass
+import shutil
 
 
 #TODO REVISITE THE NEXT 9 FUNCTIONS
@@ -83,6 +84,13 @@ def create_dir(dir: str) -> None:
 def create_dirs(dirs: list[str]) -> None:
     for dir in dirs:
         create_dir(dir)
+
+def delete_dir(dir: str) -> None:
+    shutil.rmtree(dir)
+
+def delete_dirs(dirs: list[str]) -> None:
+    for dir in dirs:
+        shutil.rmtree(dir)
 
 def num_of_tensors_in_dir(dir: str) -> int:
     return len([f for f in os.listdir(dir) if os.path.isfile(os.path.join(dir, f)) and 
