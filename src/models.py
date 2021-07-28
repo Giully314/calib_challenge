@@ -3,7 +3,9 @@ from torch import nn
 from torch.nn import functional as F
 import functools 
 import operator
-import collections 
+import collections
+
+from torch.nn.modules.linear import Linear 
 
 from utils import (
     conv1x1, 
@@ -284,3 +286,41 @@ def get_nvidia_model_sgd_sched(dev: torch.device = torch.device("cpu")):
     model, opt = get_nvidia_model_sgd(dev)
     scheduler = torch.optim.lr_scheduler.MultiStepLR(opt, [10, 20], 0.1) #default found by empirical exp. (based on 30 epochs fit)
     return model, opt, scheduler
+
+
+
+
+#Basic architecture for testing the skeleton of the training script
+class MNISTModel(nn.Module):
+    def __init__(self):
+        super(MNISTModel, self).__init__()
+
+        self.cnn = nn.Sequential(
+            nn.Conv2d(1, 16, 3, 2),
+            nn.ReLU(),
+            nn.Conv2d(16, 32, 3, 2),
+            nn.ReLU(),
+            nn.Conv2d(32, 32, 3),
+            nn.ReLU(),
+
+            nn.AvgPool2d(2),
+
+            nn.Flatten(1)
+        )
+
+        out = self.cnn(torch.zeros(1, 1, 28, 28))
+        self.cnn_shape_out = functools.reduce(operator.mul, list(out.shape))
+        
+        self.dropout = nn.Dropout(0.4)
+        self.linear = nn.Sequential(
+            nn.Linear(self.cnn_shape_out, 64),
+            nn.ReLU(),
+            nn.Linear(64, 10),
+            nn.LogSoftmax(1)
+        )
+
+    def forward(self, X):
+        out = self.cnn(X)
+        out = self.dropout(out)
+        out = self.linear(out)
+        return out
