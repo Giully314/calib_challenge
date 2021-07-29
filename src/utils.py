@@ -166,6 +166,21 @@ def inference_and_save(model, dl, output):
 
 
 
+def get_mse(gt, test):
+  test = np.nan_to_num(test)
+  return np.mean(np.nanmean((gt - test)**2, axis=0))
+
+
+def eval_angles(gt_file, test_file):
+    gt = np.loadtxt(gt_file)
+    zero_mse = get_mse(gt, np.zeros_like(gt))
+
+    test = np.loadtxt(test_file)
+    mse = get_mse(gt, test)
+
+    return mse, zero_mse
+
+
 def plot_history(history: dict) -> None:
     train_loss = history["train_loss"]
     val_loss = history["val_loss"]
