@@ -137,23 +137,23 @@ class History:
 
         for video, pred_angles, true_angles in zip(self.train_videos, inferred_angles, gt_angles):
             num_frames = len(pred_angles) #that's equal to len(gt_angles)
-
+            frames = [i for i in range(num_frames)]
             fig, (ax1, ax2) = plt.subplots(2, figsize=(10, 8), dpi=80)
 
             fig.suptitle(result_string, fontsize=14, fontweight='bold')
 
-            ax1.plot(num_frames, pred_angles[:, 0], "b-", label="Inferred pitch")
-            ax1.plot(num_frames, true_angles[:, 0], "g-", label="Gt pitch")
+            ax1.plot(frames, pred_angles[:, 0], "b-", label="Inferred pitch")
+            ax1.plot(frames, true_angles[:, 0], "g-", label="Gt pitch")
             ax1.legend(loc="center right", fontsize=12) 
-            ax1.xlabel("Frame", fontsize=16)
-            ax1.ylabel("Angles (rad)", fontsize=16)
+            ax1.set_xlabel("Frame", fontsize=16)
+            ax1.set_ylabel("Angles (rad)", fontsize=16)
             ax1.axis([0, num_frames+1, 0, max(max(pred_angles[:, 0]), max(true_angles[:, 0])) + 0.01])
 
-            ax2.plot(num_frames, pred_angles[:, 1], "b-", label="Inferred yaw")
-            ax2.plot(num_frames, true_angles[:, 1], "g-", label="Gt yaw")
+            ax2.plot(frames, pred_angles[:, 1], "b-", label="Inferred yaw")
+            ax2.plot(frames, true_angles[:, 1], "g-", label="Gt yaw")
             ax2.legend(loc="center right", fontsize=12) 
-            ax2.xlabel("Frame", fontsize=16)
-            ax2.ylabel("Angles (rad)", fontsize=16)
+            ax2.set_xlabel("Frame", fontsize=16)
+            ax2.set_ylabel("Angles (rad)", fontsize=16)
             ax2.axis([0, num_frames+1, 0, max(max(pred_angles[:, 1]), max(true_angles[:, 1])) + 0.01])
 
             h_file = os.path.join(results_dir, str(video) + ".png")
