@@ -209,7 +209,7 @@ class Endurance(nn.Module):
 
 
 class NvidiaModel(nn.Module):
-    def __init__(self):
+    def __init__(self, img_size: list[int]):
         super(NvidiaModel, self).__init__()
 
         self.cnn = nn.Sequential(
@@ -241,7 +241,8 @@ class NvidiaModel(nn.Module):
 
             nn.Flatten(1)
         )
-        out = self.cnn(torch.zeros(1, 3, 106, 350))
+        h, w = img_size
+        out = self.cnn(torch.zeros(1, 3, h, w))
         self.cnn_shape_out = functools.reduce(operator.mul, list(out.shape))
         
         self.dropout = nn.Dropout(0.5)
