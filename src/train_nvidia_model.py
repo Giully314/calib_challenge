@@ -74,7 +74,7 @@ class History:
         val_loss = self.history["valid_loss"]
         epochs = [i for i in range(len(train_loss))]
 
-        fig = plt.figure(figsize=(10, 8), dpi=80)
+        fig = plt.figure(figsize=(16, 14), dpi=80)
         ax = fig.add_subplot()
         ax.plot(epochs, train_loss, "b-", label="TrainLoss")
         ax.plot(epochs, val_loss, "g-", label="ValidLoss")
@@ -138,7 +138,7 @@ class History:
         for video, pred_angles, true_angles in zip(self.train_videos, inferred_angles, gt_angles):
             num_frames = len(pred_angles) #that's equal to len(gt_angles)
             frames = [i for i in range(num_frames)]
-            fig, (ax1, ax2) = plt.subplots(2, figsize=(10, 8), dpi=80)
+            fig, (ax1, ax2) = plt.subplots(2, figsize=(16, 14), dpi=80)
 
             fig.suptitle(result_string, fontsize=14, fontweight='bold')
 
@@ -228,7 +228,7 @@ def fit(epochs: int, history: History, train_dls: list[DataLoader], valid_dls: l
                     val_loss += np.sum(np.multiply(losses, nums)) / np.sum(nums)
 
             history["valid_loss"].append(val_loss)
-            info += f"Val_loss: {val_loss}\n" 
+            info += f"Valid_loss: {val_loss}\n" 
 
         time_elapsed = time.time() - since
         total_time += time_elapsed
