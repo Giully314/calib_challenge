@@ -8,6 +8,9 @@ import pickle
 import os
 from matplotlib import pyplot as plt
 
+#Note: this file is for the training of the final model (cnn + rnn + fc).
+
+
 #TODO Function that train and test the model to automate the process as mush as i can.
 
 #TODO Add test evaluation values. (Inherent of what the model needs to do.)
@@ -166,9 +169,9 @@ def loss_batch(model: nn.Module, loss_func: nn.Module, xb: torch.Tensor, yb: tor
     loss = loss_func(model(xb), yb)
     
     if opt is not None:
+        opt.zero_grad()
         loss.backward()
         opt.step()
-        opt.zero_grad()
         
     return loss.item(), len(xb)
 
@@ -193,7 +196,8 @@ def fit(epochs: int, history: History, train_dls: list[DataLoader], valid_dls: l
         model.train()
         train_loss = 0       
         for train_dl in train_dls:
-            losses, nums = zip(*[loss_batch(model, loss_func, xb.to(dev), yb.to(dev), opt) for xb, yb in train_dl])
+            losses, nums = zip(*[loss_batch(model, loss_func, xb.to(dev, non_blocking=True), yb.to(dev, non_blocking=True), opt) 
+                                for xb, yb in train_dl])
             train_loss += np.sum(np.multiply(losses, nums)) / np.sum(nums)
             
         history["train_loss"].append(train_loss)
