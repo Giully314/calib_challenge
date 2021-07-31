@@ -79,23 +79,24 @@ class History:
         ax.plot(epochs, train_loss, "b-", label="TrainLoss")
         ax.plot(epochs, val_loss, "g-", label="ValidLoss")
         ax.legend(loc="center right", fontsize=12) 
-        ax.xlabel("Epoch", fontsize=16)
-        ax.ylabel("Loss", fontsize=16)
+        ax.set_xlabel("Epoch", fontsize=16)
+        ax.set_ylabel("Loss", fontsize=16)
         ax.axis([0, len(epochs)+1, 0, max(max(val_loss), max(train_loss)) + 0.01])
         h_file = os.path.join(self.dir, "history.png")
         plt.savefig(h_file, transparent=False)
 
 
-    def test_model(self, test_dls: list[DataLoader]) -> str:
+    def test_model(self, test_dls: list[DataLoader], dev: torch.device) -> str:
         output_dir = os.path.join(self.dir, "results") 
         output_inferences = [os.path.join(output_dir, str(video) + ".txt") for video in self.train_videos]
         output_tests = [os.path.join(output_dir, str(video) + "_test.txt") for video in self.train_videos]
         output_result = os.path.join(output_dir, "result.txt")
 
+        ut.create_dir(output_dir)
         #TODO compute only 1 time the test set.
 
         for test_dl, output_inference in zip(test_dls, output_inferences):
-            ut.inference_and_save(self.model, test_dl, output_inference) 
+            ut.inference_and_save(self.model, test_dl, output_inference, dev) 
         
         for output_test in output_tests:
             with open(output_test, "w") as f:
@@ -186,6 +187,7 @@ def loss_batch(model: nn.Module, loss_func: nn.Module, xb: torch.Tensor, yb: tor
     return loss.item(), len(xb)
 
 #TODO: currently the to device operation is done async. Check if there are any speed up.
+#TODO: use the string info for history recap instaed of store sparse information.
 def fit(epochs: int, history: History, train_dls: list[DataLoader], valid_dls: list[DataLoader], dev: torch.device,
         verbose: bool = True) -> History:
     """
@@ -203,14 +205,16 @@ def fit(epochs: int, history: History, train_dls: list[DataLoader], valid_dls: l
         if verbose:
             print(f"Start epoch #{epoch}...")
         
+        info = ""
         model.train()
         train_loss = 0       
         for train_dl in train_dls:
-            losses, nums = zip(*[loss_batch(model, loss_func, xb.to(dev, non_blocking=True), yb.to(dev, non_blocking=True), opt) 
+            losses, nums = zip(*[loss_batch(model, loss_func, xb.to(dev, non_blocking=False), yb.to(dev, non_blocking=False), opt) 
                                 for xb, yb in train_dl])
             train_loss += np.sum(np.multiply(losses, nums)) / np.sum(nums)
             
         history["train_loss"].append(train_loss)
+        info += f"Train_loss: {train_loss}\n"
         
         if scheduler is not None:
             scheduler.step()
@@ -224,14 +228,14 @@ def fit(epochs: int, history: History, train_dls: list[DataLoader], valid_dls: l
                     val_loss += np.sum(np.multiply(losses, nums)) / np.sum(nums)
 
             history["valid_loss"].append(val_loss)
+            info += f"Val_loss: {val_loss}\n" 
 
         time_elapsed = time.time() - since
         total_time += time_elapsed
 
         if verbose:
-            print(f"Train_loss: {train_loss}")
-            print(f"Val_loss: {val_loss}")
-            print(f'Epoch complete in {(time_elapsed // 60):.0f}m {(time_elapsed % 60):.0f}s\n')
+            info += f'Epoch complete in {(time_elapsed // 60):.0f}m {(time_elapsed % 60):.0f}s\n'
+            print(info)
 
     history["total_time"] = total_time
 
