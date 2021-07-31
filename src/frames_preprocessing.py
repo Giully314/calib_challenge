@@ -108,13 +108,13 @@ def split_video(video_dir: str, train_dir: str, valid_dir: str, test_dir: str,
     valid_dir = os.path.join(valid_dir, os.path.split(video_dir)[-1])
     create_dir(valid_dir)
     for j in range(valid_start_idx, valid_end_idx):
-        shutil.move(os.path.join(video_dir, str(j) + ".pt"), os.path.join(train_dir, str(k) + ".pt"))
+        shutil.move(os.path.join(video_dir, str(j) + ".pt"), os.path.join(valid_dir, str(k) + ".pt"))
         k += 1
         
     test_dir = os.path.join(test_dir, os.path.split(video_dir)[-1])
     create_dir(test_dir)
     for j in range(test_start_idx, test_end_idx):
-        shutil.move(os.path.join(video_dir, str(j) + ".pt"), os.path.join(train_dir, str(w) + ".pt"))
+        shutil.move(os.path.join(video_dir, str(j) + ".pt"), os.path.join(test_dir, str(w) + ".pt"))
         w += 1
     
     write_angles(os.path.join(train_dir, "angles.txt"), train_angles)
