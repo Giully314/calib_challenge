@@ -232,8 +232,12 @@ class NvidiaModel(nn.Module):
             nn.BatchNorm2d(64),
             nn.ReLU(),
 
-            nn.Conv2d(64, 64, 3, 1),
-            nn.BatchNorm2d(64),
+            nn.Conv2d(64, 128, 3, 2),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+
+            nn.Conv2d(128, 128, 3, 1),
+            nn.BatchNorm2d(128),
             nn.ReLU(),
 
             # nn.AdaptiveAvgPool2d(1),
