@@ -85,7 +85,7 @@ def create_dirs(dirs: list[str]) -> None:
     for dir in dirs:
         create_dir(dir)
 
-def delete_dir(dir: str) -> None:
+def delete_dir(dir: str) -> None: 
     shutil.rmtree(dir)
 
 def delete_dirs(dirs: list[str]) -> None:
@@ -155,11 +155,11 @@ class Timer:
     
 
 
-def inference_and_save(model, dl, output):
+def inference_and_save(model, dl, output, dev = torch.device("cpu")):
     model.eval()
     with open(output, "w") as f:
         for x, y in dl:
-            y_pred = model(x)
+            y_pred = model(x.to(dev))
 
             for i in range(y_pred.shape[0]):
                 f.write(f"{y_pred[i, 0].item()} {y_pred[i, 1].item()}\n")
