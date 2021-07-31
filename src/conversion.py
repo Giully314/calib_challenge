@@ -189,7 +189,8 @@ def do_conversion(cfg: DictConfig):
     print("Start normalize validation set.")
     timer.start()
     valid_dir = os.path.join(data_dir, "valid")
-    valid_dirs = [os.path.join(valid_dir, d) for d in os.listdir(valid_dir) if os.path.isdir(d)]
+    valid_dirs = [os.path.join(valid_dir, str(video_name)) for video_name in video_names]
+    print(valid_dirs)
     fp.augment_videos(valid_dirs, valid_dirs, trf_standard, num_of_cpu=num_of_cpu)
     timer.end()
     print(f"Finished normalize validation set in {timer}")
@@ -197,7 +198,7 @@ def do_conversion(cfg: DictConfig):
     print("Start normalize test set.")
     timer.start()
     test_dir = os.path.join(data_dir, "test")
-    test_dirs = [os.path.join(test_dir, d) for d in os.listdir(test_dir) if os.path.isdir(d)]
+    test_dirs = [os.path.join(test_dir, str(video_name)) for video_name in video_names]
     fp.augment_videos(test_dirs, test_dirs, trf_standard, num_of_cpu=num_of_cpu)
     timer.end()
     print(f"Finished normalize test set in {timer}")
