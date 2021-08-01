@@ -27,6 +27,8 @@ from omegaconf import DictConfig, OmegaConf
 
 # args = parser.parse_args()
 
+#TODO refactor all. The way the script is organized is a little bit a shit. Add more flexibility.
+
 @hydra.main(config_path="config", config_name="nvidia_setup.yaml")
 def do_conversion(cfg: DictConfig):
     args = cfg["conversion"]
