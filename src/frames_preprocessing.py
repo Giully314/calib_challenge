@@ -9,6 +9,7 @@ import shutil
 from utils import (create_dir, num_of_tensors_in_dir, read_angles, write_angles, write_angles_without_nan)
 
 
+#TODO use np.loadtxt to load angles. Save tensor in blocks of 32 or 64 frames for optimizing I/O access and memory.
 
 
 def from_video_to_tensors(video_path: str, transform: T.Compose) -> list[torch.Tensor]:
