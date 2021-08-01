@@ -45,36 +45,6 @@ GlobalParams.__new__.__defaults__ = (None,) * len(GlobalParams._fields)
 BlockArgs.__new__.__defaults__ = (None,) * len(BlockArgs._fields)
 
 
-class Conv3dBlock(nn.Module):
-    def __init__(self, block_args: BlockArgs):
-        super(ConvBlock, self).__init__()
-        self.block_args = block_args
-
-        self.conv = nn.Sequential(
-            conv2d(self.block_args.in_channels, self.block_args.out_channels, self.block_args.kernel_size, self.block_args.stride),
-            nn.BatchNorm2d(self.block_args.out_channels),
-            self.block_args.activation_fun,
-            conv2d(self.block_args.out_channels, self.block_args.out_channels, self.block_args.kernel_size,),
-            nn.BatchNorm2d(self.block_args.out_channels),
-        )
-        
-        self.activation_fun = self.block_args.activation_fun
-        self.proj = nn.Sequential(
-            conv1x1(self.block_args.in_channels, self.block_args.out_channels, self.block_args.stride),
-            nn.BatchNorm2d(self.block_args.out_channels))
-        
-        
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        identity = self.proj(x)
-
-        out = self.conv(x)
-        out += identity
-        out = self.activation_fun(out)
-        
-        return out
-
-
-
 
 class ConvBlock(nn.Module):
     def __init__(self, block_args: BlockArgs):
