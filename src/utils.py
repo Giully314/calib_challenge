@@ -1,3 +1,4 @@
+import dataclasses
 import torch
 from torch import nn
 import functools
@@ -7,7 +8,7 @@ import os
 from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import shutil
 
 
@@ -170,3 +171,36 @@ def eval_angles(gt_file, test_file):
     mse = get_mse(gt, test)
 
     return mse, zero_mse
+
+
+
+#visualize cnn filters weights (code from: https://stackoverflow.com/questions/55594969/how-to-visualise-filters-in-a-cnn-with-pytorch) 
+def visualize_cnn_filters(tensor, ch=0, allkernels=False, nrow=8, padding=1): 
+    n,c,w,h = tensor.shape
+
+    if allkernels: tensor = tensor.view(n*c, -1, w, h)
+    elif c != 3: tensor = tensor[:,ch,:,:].unsqueeze(dim=1)
+
+    rows = np.min((tensor.shape[0] // nrow + 1, 64))    
+    grid = torch.utils.make_grid(tensor, nrow=nrow, normalize=True, padding=padding)
+    plt.figure( figsize=(nrow,rows) )
+    plt.imshow(grid.numpy().transpose((1, 2, 0)))
+
+
+
+#class for register activation map
+@dataclass 
+class ActivationMapHook:
+    activation: dict = field(default_factory=dict)
+
+    def get_activation(self, name):
+        def hook(model, input, output):
+            self.activation[name] = output.detach()
+        return hook
+
+
+    def __getitem__(self, idx):
+        return self.activation[idx]
+    
+    def __setitem__(self, idx, new_value):
+        self.activation[idx] = new_value
