@@ -86,6 +86,7 @@ class History:
         plt.savefig(h_file, transparent=False)
 
 
+    #test_model assume dataloaders to have batch_size = 1
     def test_model(self, test_dls: list[DataLoader], dev: torch.device) -> str:
         output_dir = os.path.join(self.dir, "results") 
         output_inferences = [os.path.join(output_dir, str(video) + ".txt") for video in self.train_videos]
@@ -98,7 +99,7 @@ class History:
         for test_dl, output_inference in zip(test_dls, output_inferences):
             ut.inference_and_save(self.model, test_dl, output_inference, dev) 
         
-        for output_test in output_tests:
+        for output_test, test_dl in zip(output_tests, test_dls):
             with open(output_test, "w") as f:
                 for x, y in test_dl:
                     for i in range(y.shape[0]):
