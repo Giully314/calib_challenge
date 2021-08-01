@@ -12,7 +12,7 @@ class ConsecutiveFramesDataset(Dataset):
                  transform : T.Compose = None):
         num_frames = ut.num_of_tensors_in_dir(frames_dir)
         self.frames = ut.load_frames(frames_dir, 0, num_frames)
-        self.angles = torch.tensor(np.loadtxt(angles_file, 0, num_frames))
+        self.angles = torch.tensor(np.loadtxt(angles_file, dtype=np.float32))
         self.transform = transform
         self.consecutive_frames = consecutive_frames
         self.step = step
@@ -38,7 +38,7 @@ def get_consecutive_frames_ds(frames_dir: str, consecutive_frames: int = 3, step
 class FrameDataset(Dataset):
     def __init__(self, frames_dir, angles_file, transform = None):
         self.frames = ut.load_frames(frames_dir, 0, ut.num_of_tensors_in_dir(frames_dir))
-        self.angles = torch.tensor(np.loadtxt(angles_file))
+        self.angles = torch.tensor(np.loadtxt(angles_file, np.float32))
         # self.frames_dir = frames_dir
         self.transform = transform
 
