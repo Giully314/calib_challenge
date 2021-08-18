@@ -29,6 +29,9 @@ from omegaconf import DictConfig, OmegaConf
 
 #TODO refactor all. The way the script is organized is a little bit a shit. Add more flexibility.
 
+
+#If normalize or crop (or both) are specified, they are applied at the end of every other transformation
+
 @hydra.main(config_path="config", config_name="nvidia_setup.yaml")
 def do_conversion(cfg: DictConfig):
     args = cfg["conversion"]
@@ -46,64 +49,6 @@ def do_conversion(cfg: DictConfig):
 
     trf_resize = T.Resize((new_height, new_width), interpolation=InterpolationMode.BICUBIC)
     basic_transform = T.Compose([bgr_to_rgb, T.ToTensor(), trf_resize])
-
-    trf_normalize = T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225], inplace=True)
-
-    trf_rotation = None
-    trf_jitter = None
-    trf_translate = None
-
-    if args.rotation is not None:
-        a1 = args.rotation[0]
-        a2 = args.rotation[1]
-        rotate = T.RandomRotation((a1, a2), interpolation=InterpolationMode.BILINEAR)
-        trf_rotation = []
-        trf_rotation.append(rotate)
-
-
-    if args.jitter is not None:
-        brightness = tuple(args.jitter[0])
-        contrast = tuple(args.jitter[1])
-        saturation = tuple(args.jitter[2])
-        hue = tuple(args.jitter[3])
-        jitter = T.ColorJitter(brightness, contrast, saturation, hue)
-        trf_jitter = []
-        trf_jitter.append(jitter)
-
-
-    if args.translate is not None:
-        translate_x = args.translate[0]
-        translate_y = args.translate[1]
-        translate = T.RandomAffine(0, (translate_x, translate_y), interpolation=InterpolationMode.BILINEAR)
-        trf_translate = []
-        trf_translate.append(translate)
-
-
-    crop_x1 = args.crop[0]
-    crop_x2 = args.crop[1]
-    crop_y1 = args.crop[2]
-    crop_y2 = args.crop[3]
-    trf_crop = Crop(crop_x1, crop_x2, crop_y1, crop_y2)
-
-
-    trf_standard = T.Compose([trf_crop, trf_normalize])
-
-
-    if trf_rotation is not None:
-        trf_rotation.append(trf_crop)
-        trf_rotation.append(trf_normalize)
-        trf_rotation = T.Compose(trf_rotation)
-
-    if trf_jitter is not None:
-        trf_jitter.append(trf_crop)
-        trf_jitter.append(trf_normalize)
-        trf_jitter = T.Compose(trf_jitter)
-
-    if trf_translate is not None:
-        trf_translate.append(trf_crop)
-        trf_translate.append(trf_normalize)
-        trf_translate = T.Compose(trf_translate)
-
 
     #Basic conversion
     video_names = args.videos
@@ -133,103 +78,100 @@ def do_conversion(cfg: DictConfig):
     timer.end()
     print(f"Finished split data in {timer}.")
 
+    transformations = {}
+
+    if args.normalization is not None:
+        trf_normalize = T.Normalize(mean=args.normalization[0], std=args.normalizations[1], inplace=True)
+        transformations["normalization"] = trf_normalize
+
+    if args.rotation is not None:
+        a1 = args.rotation[0]
+        a2 = args.rotation[1]
+        trf_rotation = T.RandomRotation((a1, a2), interpolation=InterpolationMode.BILINEAR)
+        transformations["rotation"] = trf_rotation
+
+    if args.jitter is not None:
+        brightness = tuple(args.jitter[0])
+        contrast = tuple(args.jitter[1])
+        saturation = tuple(args.jitter[2])
+        hue = tuple(args.jitter[3])
+        trf_jitter = T.ColorJitter(brightness, contrast, saturation, hue)
+        transformations["jitter"] = trf_jitter
+
+    if args.translate is not None:
+        translate_x = args.translate[0]
+        translate_y = args.translate[1]
+        trf_translate = T.RandomAffine(0, (translate_x, translate_y), interpolation=InterpolationMode.BILINEAR)
+        transformations["translate"] = trf_translate
+
+    if args.crop is not None:
+        crop_x1 = args.crop[0]
+        crop_x2 = args.crop[1]
+        crop_y1 = args.crop[2]
+        crop_y2 = args.crop[3]
+        trf_crop = Crop(crop_x1, crop_x2, crop_y1, crop_y2)
+        transformations["crop"] = trf_crop
 
     #augment data
     basic_train_dir = os.path.join(data_dir, "basic_train")
     inputs = [os.path.join(basic_train_dir, str(video_name)) for video_name in video_names]
-    train_dir = os.path.join(data_dir, "train")
-    ut.create_dir(train_dir)
-
-    print("Start augment frames with standard transform.")
-    timer.start()
-    count = 0
-    standard_dirs = [os.path.join(train_dir, str(video_name)) for video_name in video_names]
-    ut.create_dirs(standard_dirs)
-    fp.augment_videos(inputs, standard_dirs, trf_standard, num_of_cpu=num_of_cpu)
-    count += len(standard_dirs)
-    timer.end()
-    print(f"Finished augment frames with standard transform in {timer}.")
-
-
-    merge_dirs = [*standard_dirs] #for merge
-
-    if trf_jitter is not None:
-        print("Start augment frames with jitter transform.")
+    for transform, output in zip(args.transformations, args.aug_data_output):
+        print(f"Start augment frames with {transform}.")
         timer.start()
-        jitter_dirs = [os.path.join(train_dir, str(video_name + count)) for video_name in video_names]
-        merge_dirs += jitter_dirs
-        ut.create_dirs(jitter_dirs)
-        fp.augment_videos(inputs, jitter_dirs, trf_jitter, num_of_cpu=num_of_cpu)
-        count += len(jitter_dirs)
+        ut.create_dir(output)
+        output_aug_data = [os.path.join(output, str(video_name)) for video_name in video_names]
+        ut.create_dirs(output_aug_data)
+        trfs = [transformations[t] for t in transform]
+        full_transform = T.Compose(trfs)
+        fp.augment_videos(inputs, output_aug_data, full_transform, num_of_cpu)
         timer.end()
-        print(f"Finished augment frames with jitter transform in {timer}.")
+        print(f"Finished augment frames with {transform} in {timer}.")
 
-    if trf_rotation is not None:
-        print("Start augment frames with rotation transform.")
-        timer.start()
-        rotation_dirs = [os.path.join(train_dir, str(video_name + count)) for video_name in video_names]
-        merge_dirs += rotation_dirs
-        ut.create_dirs(rotation_dirs)
-        fp.augment_videos(inputs, rotation_dirs, trf_rotation, num_of_cpu=num_of_cpu)
-        count += len(rotation_dirs)
-        timer.end()
-        print(f"Finished augment frames with rotation transform in {timer}.")
-
-    if trf_translate is not None:
-        print("Start augment frames with translate transform.")
-        timer.start()
-        translate_dirs = [os.path.join(train_dir, str(video_name + count)) for video_name in video_names]
-        merge_dirs += translate_dirs
-        ut.create_dirs(translate_dirs)
-        fp.augment_videos(inputs, translate_dirs, trf_translate, num_of_cpu=num_of_cpu)
-        count += len(translate_dirs)
-        timer.end()
-        print(f"Finished augment frames with translate transform in {timer}.")
-
-
+    #TODO check if valid/test set needs some sort of aug preprocessing.
     #normalize validation and test set
-    print("Start normalize validation set.")
-    timer.start()
-    valid_dir = os.path.join(data_dir, "valid")
-    valid_dirs = [os.path.join(valid_dir, str(video_name)) for video_name in video_names]
-    print(valid_dirs)
-    fp.augment_videos(valid_dirs, valid_dirs, trf_standard, num_of_cpu=num_of_cpu)
-    timer.end()
-    print(f"Finished normalize validation set in {timer}")
+    # print("Start normalize validation set.")
+    # timer.start()
+    # valid_dir = os.path.join(data_dir, "valid")
+    # valid_dirs = [os.path.join(valid_dir, str(video_name)) for video_name in video_names]
+    # print(valid_dirs)
+    # fp.augment_videos(valid_dirs, valid_dirs, trf_standard, num_of_cpu=num_of_cpu)
+    # timer.end()
+    # print(f"Finished normalize validation set in {timer}")
 
-    print("Start normalize test set.")
-    timer.start()
-    test_dir = os.path.join(data_dir, "test")
-    test_dirs = [os.path.join(test_dir, str(video_name)) for video_name in video_names]
-    fp.augment_videos(test_dirs, test_dirs, trf_standard, num_of_cpu=num_of_cpu)
-    timer.end()
-    print(f"Finished normalize test set in {timer}")
+    # print("Start normalize test set.")
+    # timer.start()
+    # test_dir = os.path.join(data_dir, "test")
+    # test_dirs = [os.path.join(test_dir, str(video_name)) for video_name in video_names]
+    # fp.augment_videos(test_dirs, test_dirs, trf_standard, num_of_cpu=num_of_cpu)
+    # timer.end()
+    # print(f"Finished normalize test set in {timer}")
 
     ut.delete_dirs(outputs)
 
-    if merge:
-        print("Start merge frames.")
-        timer.start()
-        #TODO remove empty directories.
-        fp.merge_frames(merge_dirs, os.path.join(data_dir, "train_merged_frames"))
-        fp.merge_frames(valid_dirs, os.path.join(data_dir), "valid_merged_frames")
-        fp.merge_frames(test_dirs, os.path.join(data_dir), "test_merged_frames")
-        timer.end()
-        print(f"Finished merge frames in {timer}.")
+    #TODO refactor merge.
+    # if merge:
+    #     print("Start merge frames.")
+    #     timer.start()
+    #     #TODO remove empty directories.
+    #     fp.merge_frames(merge_dirs, os.path.join(data_dir, "train_merged_frames"))
+    #     fp.merge_frames(valid_dirs, os.path.join(data_dir), "valid_merged_frames")
+    #     fp.merge_frames(test_dirs, os.path.join(data_dir), "test_merged_frames")
+    #     timer.end()
+    #     print(f"Finished merge frames in {timer}.")
 
-        ut.delete_dir(test_dir)
-        ut.delete_dir(valid_dir)
-        ut.delete_dir(basic_train_dir)
-        ut.delete_dirs(standard_dirs)
+    #     ut.delete_dir(test_dir)
+    #     ut.delete_dir(valid_dir)
+    #     ut.delete_dir(basic_train_dir)
+    #     ut.delete_dirs(standard_dirs)
 
-        if trf_translate is not None:
-            ut.delete_dirs(translate_dirs)
+    #     if trf_translate is not None:
+    #         ut.delete_dirs(translate_dirs)
         
-        if trf_jitter is not None:
-            ut.delete_dirs(jitter_dirs)
+    #     if trf_jitter is not None:
+    #         ut.delete_dirs(jitter_dirs)
 
-        if trf_rotation is not None:
-            ut.delete_dirs(rotation_dirs)
+    #     if trf_rotation is not None:
+    #         ut.delete_dirs(rotation_dirs)
         
 
 
