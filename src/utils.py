@@ -57,10 +57,10 @@ def calculate_output_image_size(input_image_size, stride):
 
 
 def conv1x1(in_channels: int, out_channels: int, stride: int = 1) -> nn.Conv2d:
-    return nn.Conv2d(in_channels, out_channels, 1, stride=stride)
+    return nn.Conv2d(in_channels, out_channels, 1, stride=stride, bias=False)
 
 def conv2d(in_channels: int, out_channels: int, kernel_size: int, stride: int = 1) -> nn.Conv2d:
-    return nn.Conv2d(in_channels, out_channels, kernel_size, stride=stride, padding=1)
+    return nn.Conv2d(in_channels, out_channels, kernel_size, stride=stride, padding=1, bias=False)
 
 def conv2d_layer(in_channels: int, out_channels: int, kernel_size: int, stride: int, pl_kernel: int, pl_stride: int):
     return (conv2d(in_channels, out_channels, kernel_size, stride), nn.BatchNorm2d(out_channels), 
