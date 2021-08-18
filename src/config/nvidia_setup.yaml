@@ -7,8 +7,11 @@ conversion:
   width_divisor: 3
   train_split: 0.8
   test_split: 0.1
-  merge: False
+  merge: False   #merge all the frames in a single directory
+  normalization: null
   jitter: null
   translate: null
   rotation: null
   crop: [10, 370, 110, 230]
+  transformations: [] #list of list of names of transformations to apply
+  aug_data_output: [] #a list of dirs name for output the transformations
