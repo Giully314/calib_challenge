@@ -32,7 +32,7 @@ from omegaconf import DictConfig, OmegaConf
 
 #If normalize or crop (or both) are specified, they are applied at the end of every other transformation
 
-@hydra.main(config_path="config", config_name="nvidia_setup.yaml")
+@hydra.main(config_path="config", config_name="windows_nvidia_setup.yaml")
 def do_conversion(cfg: DictConfig):
     args = cfg["conversion"]
     num_of_cpu = args.cpus
@@ -114,10 +114,13 @@ def do_conversion(cfg: DictConfig):
 
     #augment data
     basic_train_dir = os.path.join(data_dir, "basic_train")
+    train_dir = os.path.join(data_dir, "train")
+    ut.create_dir(train_dir)
     inputs = [os.path.join(basic_train_dir, str(video_name)) for video_name in video_names]
     for transform, output in zip(args.transformations, args.aug_data_output):
         print(f"Start augment frames with {transform}.")
         timer.start()
+        output = os.path.join(train_dir, output)
         ut.create_dir(output)
         output_aug_data = [os.path.join(output, str(video_name)) for video_name in video_names]
         ut.create_dirs(output_aug_data)
@@ -126,6 +129,26 @@ def do_conversion(cfg: DictConfig):
         fp.augment_videos(inputs, output_aug_data, full_transform, num_of_cpu)
         timer.end()
         print(f"Finished augment frames with {transform} in {timer}.")
+
+    #validation/test set preprocessing only with crop and normalize (if specified)
+    #TODO for now i specify only the crop for preprocessing. Write a better generalized version
+
+    if "crop" in args.transformations:
+        print("Start cropping validation set.")
+        timer.start()
+        valid_dir = os.path.join(data_dir, "valid")
+        valid_dirs = [os.path.join(valid_dir, str(video_name)) for video_name in video_names]
+        fp.augment_videos(valid_dirs, valid_dirs, transform["crop"], num_of_cpu=num_of_cpu)
+        timer.end()
+        print(f"Finished cropping validation set in {timer}")
+
+        print("Start cropping test set.")
+        timer.start()
+        test_dir = os.path.join(data_dir, "test")
+        test_dirs = [os.path.join(test_dir, str(video_name)) for video_name in video_names]
+        fp.augment_videos(test_dirs, test_dirs, transform["crop"], num_of_cpu=num_of_cpu)
+        timer.end()
+        print(f"Finished cropping test set in {timer}")
 
     #TODO check if valid/test set needs some sort of aug preprocessing.
     #normalize validation and test set
