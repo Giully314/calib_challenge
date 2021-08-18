@@ -1,0 +1,17 @@
+conversion:
+  cpus: 5
+  input: input_dir_videos
+  output: output_dir
+  videos: [0, 1, 2, 3, 4]
+  height_divisor: 3
+  width_divisor: 3
+  train_split: 0.8
+  test_split: 0.1
+  merge: False   #merge all the frames in a single directory
+  normalization: null
+  jitter: null
+  translate: null
+  rotation: null
+  crop: [10, 370, 110, 230]
+  transformations: [["crop"], ["rotation, crop"]] #list of list of names of transformations to apply
+  aug_data_output: ["cropped", rotated] #a list of dirs name for output the transformations
