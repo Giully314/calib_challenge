@@ -33,7 +33,7 @@ from omegaconf import DictConfig, OmegaConf
 
 #If normalize or crop (or both) are specified, they are applied at the end of every other transformation
 
-@hydra.main(config_path="config", config_name="windows_nvidia_setup.yaml")
+@hydra.main(config_path="config", config_name="nvidia_setup.yaml")
 def do_conversion(cfg: DictConfig):
     args = cfg["conversion"]
     num_of_cpu = args.cpus
@@ -108,10 +108,10 @@ def do_conversion(cfg: DictConfig):
         transformations["translate"] = trf_translate
 
     if args.crop is not None:
-        crop_y1 = new_height * args.crop[0]
-        crop_y2 = new_height - new_height * args.crop[1]
-        crop_x1 = new_width * args.crop[2]
-        crop_x2 = new_width - new_width * args.crop[3]
+        crop_y1 = int(new_height * args.crop[0])
+        crop_y2 = int(new_height - new_height * args.crop[1])
+        crop_x1 = int(new_width * args.crop[2])
+        crop_x2 = int(new_width - new_width * args.crop[3])
         trf_crop = Crop(crop_x1, crop_x2, crop_y1, crop_y2)
         transformations["crop"] = trf_crop
 
