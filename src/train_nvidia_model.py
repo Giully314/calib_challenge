@@ -4,7 +4,7 @@ from torch import nn
 import numpy as np
 import time 
 import utils as ut
-import pickle
+import models
 import os
 from matplotlib import pyplot as plt
 
@@ -29,15 +29,8 @@ class History:
         ut.create_dir(self.dir)
 
     def save_training_info(self):
-        #TODO build one string and then write, for optimizing access to disk.
         file_txt = os.path.join(self.dir, "history.txt")
         with open(file_txt, "w") as f:
-            # for key, value in self.__dict__.items():
-            #     if key == "filename" or key == "history" or key == "scheduler" or key == batch_size:
-            #         continue
-            #     if value is not None:
-            #         f.write(f"{repr(value)}\n\n")
-            
             s = f"{repr(self.model)}\n\n"
             s += f"{repr(self.opt)}\n\n"
             s += f"{repr(self.loss_func)}\n\n"
@@ -54,18 +47,26 @@ class History:
 
             total_time = self.history["total_time"]
             f.write(f"\nTotal time: { total_time }")
-
-        h_file = os.path.join(self.dir, "history.pkl")
-        with open(h_file, "wb") as f:
-            pickle.dump(self.history, f)
         
         self._save_training_png()
 
+    def save_training_curve(self):
+        train_loss = self.history["train_loss"]
+        epochs = [i for i in range(len(train_loss))]
 
-    def load(self):
-        h_file = os.path.join(self.dir, "history.pkl")
-        with open(h_file, "rb") as f:
-            self.history = pickle.load(f)
+        fig = plt.figure(figsize=(16, 14), dpi=80)
+        ax = fig.add_subplot()
+        ax.plot(epochs, train_loss, "b-", label="TrainLoss")
+        ax.legend(loc="center right", fontsize=12) 
+        ax.set_xlabel("Epoch", fontsize=16)
+        ax.set_ylabel("Train Loss", fontsize=16)
+        h_file = os.path.join(self.dir, "training_curve.png")
+        plt.savefig(h_file, transparent=False)
+        
+
+    def save_model(self) -> None:
+        path = os.path.join(self.dir, "model_state_dict.pt")
+        models.save_model(self.model, path)
     
     
     def _save_training_png(self):
@@ -210,7 +211,7 @@ def fit(epochs: int, history: History, train_dls: list[DataLoader], valid_dls: l
         model.train()
         train_loss = 0       
         for train_dl in train_dls:
-            losses, nums = zip(*[loss_batch(model, loss_func, xb.to(dev, non_blocking=False), yb.to(dev, non_blocking=False), opt) 
+            losses, nums = zip(*[loss_batch(model, loss_func, xb.to(dev, non_blocking=True), yb.to(dev, non_blocking=True), opt) 
                                 for xb, yb in train_dl])
             train_loss += np.sum(np.multiply(losses, nums)) / np.sum(nums)
             
