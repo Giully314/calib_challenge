@@ -108,10 +108,10 @@ def do_conversion(cfg: DictConfig):
         transformations["translate"] = trf_translate
 
     if args.crop is not None:
-        crop_x1 = args.crop[0]
-        crop_x2 = args.crop[1]
-        crop_y1 = args.crop[2]
-        crop_y2 = args.crop[3]
+        crop_y1 = new_height * args.crop[0]
+        crop_y2 = new_height - new_height * args.crop[1]
+        crop_x1 = new_width * args.crop[2]
+        crop_x2 = new_width - new_width * args.crop[3]
         trf_crop = Crop(crop_x1, crop_x2, crop_y1, crop_y2)
         transformations["crop"] = trf_crop
 
