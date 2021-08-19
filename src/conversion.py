@@ -1,8 +1,9 @@
+import cv2
 from torchvision import transforms as T
 from torchvision.transforms import InterpolationMode
 import os
 import frames_preprocessing as fp
-from custom_transform import bgr_to_rgb, Crop
+from custom_transform import bgr_to_rgb, Crop, BGRToYUV
 import utils as ut
 import hydra
 from omegaconf import DictConfig, OmegaConf
@@ -47,8 +48,10 @@ def do_conversion(cfg: DictConfig):
     train_split = args.train_split
     test_split = args.test_split
 
+        
+    color_repr = BGRToYUV() if args.yuv else bgr_to_rgb   
     trf_resize = T.Resize((new_height, new_width), interpolation=InterpolationMode.BICUBIC)
-    basic_transform = T.Compose([bgr_to_rgb, T.ToTensor(), trf_resize])
+    basic_transform = T.Compose([color_repr, T.ToTensor(), trf_resize])
 
     #Basic conversion
     video_names = args.videos
