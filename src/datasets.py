@@ -58,6 +58,25 @@ def get_frame_ds(frames_dir: str, transform: T.Compose = None) -> FrameDataset:
     return FrameDataset(frames_dir, os.path.join(frames_dir, "angles.txt"), transform) 
 
 
+class RangeFrameDataset(Dataset):
+    def __init__(self, frames_dir, angles_file, start, end):
+        self.frames = torch.stack(ut.load_frames(frames_dir, start, end))
+        self.angles = torch.tensor(np.loadtxt(angles_file, np.float32))
+
+    def __getitem__(self, idx):
+        # torch.load(os.path.join(self.frames_dir, str(idx) + ".pt"))
+        # return (torch.load(os.path.join(self.frames_dir, str(idx) + ".pt")), self.angles[idx]) 
+        frame = self.frames[idx]
+        return (frame, self.angles[idx])
+
+    def __len__(self):
+        return len(self.frames)
+
+
+def get_range_frame_ds(frames_dir: str) -> FrameDataset:
+    return RangeFrameDataset(frames_dir, os.path.join(frames_dir, "angles.txt"), 0, 2) 
+
+
 
 def get_dl(ds, batch_size=32, shuffle=False, num_workers=2, pin_memory=True) -> DataLoader:
     return DataLoader(ds, batch_size=batch_size, shuffle=shuffle, pin_memory=pin_memory, 
