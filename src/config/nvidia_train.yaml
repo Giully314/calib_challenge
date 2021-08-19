@@ -1,0 +1,38 @@
+train:
+  data: /home/giully/Programmazione/calib_challenge/src/data_h3_w3
+  videos: [0]
+
+  frame_size: [102, 233]
+  
+  train_dir: train
+  train_data: ["cropped"]
+  valid_data: valid
+  test_data: test
+
+  dataset: FrameDataset
+  
+  batch_size: 32
+  shuffle: false
+  persistent_workers: true
+  train_workers: 8
+  valid_workers: 4
+  test_workers: 0
+
+  model: augmented_nvidia
+  blocks_args: null #[ [2, 64, 128, 3, 2] ] #[6, 128, 256, 3, 2], [4, 256, 512, 3, 2] ]
+  linear_layers: [100, 50, 10, 2]
+
+  loss: mse
+  
+  opt: adam
+  # lr: 0.000001 overfit 2 samples with basic nvidia architecture
+  lr: 0.0003
+
+  epochs: 50
+
+  history_out: /home/giully/Programmazione/calib_challenge/src/test_1
+  save_history: true
+  save_model: false
+
+
+    
