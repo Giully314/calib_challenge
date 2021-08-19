@@ -11,6 +11,8 @@ from utils import (create_dir, num_of_tensors_in_dir, read_angles, write_angles,
 
 #TODO use np.loadtxt to load angles. Save tensor in blocks of 32 or 64 frames for optimizing I/O access and memory.
 #TODO refactor all because it sucks. Save a videos in a unique tensor for contigous memory and avoid the usage of torch.stack in dataset.
+#TODO first load all the videos in ram (depend on ram size) and then save it on disk with only 1/2 processes to
+# avoid disk access overhead 
 
 def from_video_to_tensors(video_path: str, transform: T.Compose) -> list[torch.Tensor]:
     """
