@@ -5,7 +5,6 @@ import functools
 import operator
 import collections
 
-from torch.nn.modules.linear import Linear 
 
 from utils import (
     conv1x1, 
@@ -27,7 +26,6 @@ class RMSELoss(nn.Module):
 
 BlockArgs = collections.namedtuple("BlockArgs", [
             "num_repeat", "in_channels", "out_channels", "kernel_size", "stride",
-            "activation_fun", 
 ])
 
 
@@ -51,24 +49,34 @@ class ConvBlock(nn.Module):
         super(ConvBlock, self).__init__()
         self.block_args = block_args
 
-        self.conv = nn.Sequential(
-            conv2d(self.block_args.in_channels, self.block_args.out_channels, self.block_args.kernel_size, self.block_args.stride),
-            nn.BatchNorm2d(self.block_args.out_channels),
-            self.block_args.activation_fun,
-            conv2d(self.block_args.out_channels, self.block_args.out_channels, self.block_args.kernel_size,),
-            nn.BatchNorm2d(self.block_args.out_channels),
-        )
         
-        self.activation_fun = self.block_args.activation_fun
-        self.proj = nn.Sequential(
-            conv1x1(self.block_args.in_channels, self.block_args.out_channels, self.block_args.stride),
-            nn.BatchNorm2d(self.block_args.out_channels))
+        self.conv1 = conv2d(self.block_args.in_channels, self.block_args.out_channels, self.block_args.kernel_size, self.block_args.stride)
+        self.norm1 = nn.BatchNorm2d(self.block_args.out_channels)
+
+        self.conv2 = conv2d(self.block_args.out_channels, self.block_args.out_channels, self.block_args.kernel_size)
+        self.norm2 = nn.BatchNorm2d(self.block_args.out_channels)
         
+        
+        self.activation_fun = nn.ReLU(inplace=True)
+        self.proj = None 
+        if self.block_args.stride != 1 or (self.block_args.in_channels != self.block_args.out_channels):
+            self.proj = nn.Sequential(
+                conv1x1(self.block_args.in_channels, self.block_args.out_channels, self.block_args.stride),
+                nn.BatchNorm2d(self.block_args.out_channels))
         
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        identity = self.proj(x)
+        identity = x
 
-        out = self.conv(x)
+        out = self.conv1(x)
+        out = self.norm1(out)
+        out = self.activation_fun(out)
+
+        out = self.conv2(out)
+        out = self.norm2(out)
+
+        if self.proj is not None:
+            identity = self.proj(identity)
+            
         out += identity
         out = self.activation_fun(out)
         
@@ -186,29 +194,29 @@ class NvidiaModel(nn.Module):
             nn.BatchNorm2d(3),
             
             nn.Conv2d(3, 24, 5, 2),
-            nn.BatchNorm2d(24),
-            nn.ReLU(),
+            # nn.BatchNorm2d(24),
+            nn.ELU(),
             # nn.MaxPool2d(2, 2),
 
             nn.Conv2d(24, 36, 5, 2),
-            nn.BatchNorm2d(36),
-            nn.ReLU(),
+            # nn.BatchNorm2d(36),
+            nn.ELU(),
 
             nn.Conv2d(36, 48, 5, 2),
-            nn.BatchNorm2d(48),
-            nn.ReLU(),
+            # nn.BatchNorm2d(48),
+            nn.ELU(),
 
             nn.Conv2d(48, 64, 3, 1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(),
+            # nn.BatchNorm2d(64),
+            nn.ELU(),
 
-            nn.Conv2d(64, 128, 3, 2),
-            nn.BatchNorm2d(128),
-            nn.ReLU(),
+            nn.Conv2d(64, 64, 3, 1),
+            # nn.BatchNorm2d(128),
+            nn.ELU(),
 
-            nn.Conv2d(128, 128, 3, 1),
-            nn.BatchNorm2d(128),
-            nn.ReLU(),
+            # nn.Conv2d(128, 128, 3, 1),
+            # # nn.BatchNorm2d(128),
+            # nn.ReLU(),
 
             # nn.AdaptiveAvgPool2d(1),
             nn.AvgPool2d(2),
@@ -219,21 +227,21 @@ class NvidiaModel(nn.Module):
         out = self.cnn(torch.zeros(1, 3, h, w))
         self.cnn_shape_out = functools.reduce(operator.mul, list(out.shape))
         
-        self.dropout = nn.Dropout(0.5)
+        # self.dropout = nn.Dropout(0.5)
 
         self.linear = nn.Sequential(
             nn.Linear(self.cnn_shape_out, 100),
-            nn.PReLU(), 
+            nn.ELU(), 
             nn.Linear(100, 50),
-            nn.PReLU(),
+            nn.ELU(),
             nn.Linear(50, 10),
-            nn.PReLU(), 
+            nn.ELU(), 
             nn.Linear(10, 2),
         )
 
     def forward(self, X):
         out = self.cnn(X)
-        out = self.dropout(out)
+        # out = self.dropout(out)
         out = self.linear(out)
         return out
 
@@ -297,5 +305,84 @@ class MNISTModel(nn.Module):
     def forward(self, X):
         out = self.cnn(X)
         out = self.dropout(out)
+        out = self.linear(out)
+        return out
+
+
+
+class AugmentedNvidiaModel(nn.Module):
+    def __init__(self, img_size: list[int], blocks_args: list[BlockArgs]):
+        super(AugmentedNvidiaModel, self).__init__()
+        self.cnn = nn.ModuleList([])
+
+        #Nvidia basic as starting model.
+        self.cnn.append(nn.Sequential(
+            nn.BatchNorm2d(3),
+            
+            nn.Conv2d(3, 24, 5, 2, bias=False),
+            nn.BatchNorm2d(24),
+            nn.ReLU(),
+
+            nn.Conv2d(24, 36, 5, 2, bias=False),
+            nn.BatchNorm2d(36),
+            nn.ReLU(),
+
+            nn.Conv2d(36, 48, 5, 1, bias=False),
+            nn.BatchNorm2d(48),
+            nn.ReLU(),
+
+            nn.Conv2d(48, 64, 3, 1, bias=False),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+
+            nn.Conv2d(64, 64, 3, 1, bias=False),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            )
+        )
+
+        for block_args in blocks_args:
+            self.cnn.append(ConvBlock(block_args))
+            if block_args.num_repeat > 1:  # modify block_args to keep same output size
+                block_args = block_args._replace(in_channels=block_args.out_channels, stride=1)
+            for _ in range(block_args.num_repeat - 1):
+                self.cnn.append(ConvBlock(block_args))
+        
+        # nn.AdaptiveAvgPool2d(1),
+        self.cnn.append(nn.AvgPool2d(2, stride=2))
+        self.cnn.append(nn.Flatten(1))
+        
+        h, w = img_size
+        out = self.extract_features(torch.zeros(1, 3, h, w))
+        self.cnn_shape_out = functools.reduce(operator.mul, list(out.shape))
+        
+        # self.dropout = nn.Dropout(0.5)
+
+        self.linear = nn.Sequential(
+            nn.Linear(self.cnn_shape_out, 2500),
+            nn.ReLU(),   
+            nn.Linear(2500, 1000),
+            nn.ReLU(),   
+            nn.Linear(1000, 400),
+            nn.ReLU(),     
+            nn.Linear(400, 100),
+            nn.ReLU(), 
+            nn.Linear(100, 50),
+            nn.ReLU(),
+            nn.Linear(50, 10),
+            nn.ReLU(), 
+            nn.Linear(10, 2),
+        )
+
+    def extract_features(self, X: torch.Tensor) -> torch.Tensor:
+        out = X
+        for cnn in self.cnn:
+            out = cnn(out)
+        return out
+
+    def forward(self, X: torch.Tensor) -> torch.Tensor:
+        out = self.extract_features(X)
+
+        # out = self.dropout(out)
         out = self.linear(out)
         return out
