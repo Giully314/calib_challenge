@@ -7,6 +7,7 @@ import utils as ut
 import pickle
 import os
 from matplotlib import pyplot as plt
+import models
 
 #Note: this file is for the training of the final model (cnn + rnn + fc).
 
@@ -28,7 +29,7 @@ class History:
 
         ut.create_dir(self.dir)
 
-    def save_training_info(self):
+    def save_training_info(self) -> None:
         #TODO build one string and then write, for optimizing access to disk.
         file_txt = os.path.join(self.dir, "history.txt")
         with open(file_txt, "w") as f:
@@ -54,21 +55,16 @@ class History:
 
             total_time = self.history["total_time"]
             f.write(f"\nTotal time: { total_time }")
-
-        h_file = os.path.join(self.dir, "history.pkl")
-        with open(h_file, "wb") as f:
-            pickle.dump(self.history, f)
-        
+  
         self._save_training_png()
 
 
-    def load(self):
-        h_file = os.path.join(self.dir, "history.pkl")
-        with open(h_file, "rb") as f:
-            self.history = pickle.load(f)
+    def save_model(self) -> None:
+        path = os.path.join(self.dir, "model_state_dict.pt")
+        models.save_model(self.model, path)
     
     
-    def _save_training_png(self):
+    def _save_training_png(self) -> None:
         #TODO create a new figure and then plot.
         train_loss = self.history["train_loss"]
         val_loss = self.history["valid_loss"]
