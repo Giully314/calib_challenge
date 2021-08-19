@@ -1,19 +1,18 @@
-from models import RMSELoss
-from torch.utils.data import Dataset, DataLoader
-import utils as ut
+from models import BlockArgs, RMSELoss, AugmentedNvidiaModel, NvidiaModel
+from torch.utils.data import DataLoader
 import torch
-from datasets import FrameDataset
+from datasets import FrameDataset, get_frame_ds
 import train_nvidia_model as tnm
 import os 
 import numpy as np
-import random 
-import matplotlib.pyplot as plt
 from torch import nn
-import functools
-import operator
-import shutil
+import random 
+import hydra
+from omegaconf import DictConfig, OmegaConf
 
-def main():
+
+@hydra.main(config_path="config", config_name="nvidia_train.yaml")
+def main(cfg: DictConfig):
     seed = 1729
     def reset_rand_seed(): 
         random.seed(seed)
@@ -22,98 +21,32 @@ def main():
     reset_rand_seed()
     #torch.use_deterministic_algorithms(True)
 
+    args = cfg["train"]
 
     dev = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    img_size = tuple(args.frame_size)
 
-    #if a conv layer is followed by a batchnorm, don't use bias (it cancel the effect so it's useless)
-    class NvidiaModel(nn.Module):
-        def __init__(self, img_size: list[int]):
-            super(NvidiaModel, self).__init__()
-
-            self.cnn = nn.Sequential(
-                nn.BatchNorm2d(3),
-                
-                nn.Conv2d(3, 24, 5, 2),
-                # nn.BatchNorm2d(24),
-                nn.ReLU(),
-                # nn.MaxPool2d(2, 2),
-
-                nn.Conv2d(24, 36, 5, 2),
-                # nn.BatchNorm2d(36),
-                nn.ReLU(),
-
-                nn.Conv2d(36, 48, 5, 2),
-                # nn.BatchNorm2d(48),
-                nn.ReLU(),
-
-                nn.Conv2d(48, 64, 3, 1),
-                # nn.BatchNorm2d(64),
-                nn.ReLU(),
-
-                nn.Conv2d(64, 64, 3, 1),
-                # nn.BatchNorm2d(64),
-                nn.ReLU(),
-
-                # nn.Conv2d(64, 128, 3, 2),
-                # # nn.BatchNorm2d(128),
-                # nn.ReLU(),
-
-                # nn.Conv2d(128, 256, 3, 2),
-                # nn.BatchNorm2d(256),
-                # nn.ReLU(),
-
-
-                # nn.AdaptiveAvgPool2d(1),
-                # nn.AvgPool2d(2),
-
-                nn.Flatten(1)
-            )
-            h, w = img_size
-            out = self.cnn(torch.zeros(1, 3, h, w))
-            self.cnn_shape_out = functools.reduce(operator.mul, list(out.shape))
-            
-            #self.dropout = nn.Dropout(0.5)
-
-            self.linear = nn.Sequential(
-                nn.Linear(self.cnn_shape_out, 1024),
-                nn.ReLU(), 
-                nn.Linear(1024, 512),
-                nn.ReLU(),
-                nn.Linear(512, 128),
-                nn.ReLU(),
-                nn.Linear(128, 64),
-                nn.ReLU(),
-                nn.Linear(64, 16),
-                nn.ReLU(), 
-                nn.Linear(16, 2),
-            )
-
-        def forward(self, X):
-            out = self.cnn(X)
-            #out = self.dropout(out)
-            out = self.linear(out)
-            return out
-
-
-    data_dir = "data_h3_w3"
-    videos = [2, 3, 4]
-    train_dir = os.path.join(data_dir, "train")
-    train_dir = os.path.join(train_dir, "cropped")
-    valid_dir = os.path.join(data_dir, "valid")
-    test_dir = os.path.join(data_dir, "test")
-    train_dirs = [os.path.join(train_dir, str(video)) for video in videos]
+    data_dir = args.data
+    videos = args.videos
+    train_dir = os.path.join(data_dir, args.train_dir)
+    train_dirs = [os.path.join(train_dir, d) for d in args.train_data]
+    train_dirs = [os.path.join(d, str(video)) for d in train_dirs for video in videos]
+    # train_angles_files = [os.path.join(td, "angles.txt") for td in train_dirs]
+    
+    valid_dir = os.path.join(data_dir, args.valid_data)
     valid_dirs = [os.path.join(valid_dir, str(video)) for video in videos]
+    # valid_angles_files = [os.path.join(vd, "angles.txt") for vd in valid_dirs]
+
+    test_dir = os.path.join(data_dir, args.test_data)
     test_dirs = [os.path.join(test_dir, str(video)) for video in videos]
-    train_angles_files = [os.path.join(td, "angles.txt") for td in train_dirs]
-    valid_angles_files = [os.path.join(vd, "angles.txt") for vd in valid_dirs]
-    test_angles_files = [os.path.join(td, "angles.txt") for td in test_dirs]
-
-
-
-    train_datasets = [FrameDataset(frame_dir, angles_file) for frame_dir, angles_file in zip(train_dirs, train_angles_files)]
-    valid_datasets = [FrameDataset(frame_dir, angles_file) for frame_dir, angles_file in zip(valid_dirs, valid_angles_files)]
-    test_datasets = [FrameDataset(frame_dir, angles_file) for frame_dir, angles_file in zip(test_dirs, test_angles_files)]
-
+    # test_angles_files = [os.path.join(td, "angles.txt") for td in test_dirs]
+    
+    if args.dataset == "FrameDataset":
+        train_datasets = [get_frame_ds(frame_dir) for frame_dir in train_dirs]
+        valid_datasets = [get_frame_ds(frame_dir) for frame_dir in valid_dirs]
+        test_datasets = [get_frame_ds(frame_dir) for frame_dir in test_dirs]
+    else:
+        print("Attention no dataset provided.")
 
 
     def seed_worker(worker_id):
@@ -131,40 +64,63 @@ def main():
     # t = torch.Generator()
     # t.manual_seed(seed)
 
-    batch_size = 32
-    num_workers = 0
-    shuffle = False
-    persistent_workers = False
+    batch_size = args.batch_size
+    train_workers = args.train_workers
+    valid_workers = args.valid_workers
+    test_workers = args.test_workers
+    shuffle = args.shuffle
+    persistent_workers = args.persistent_workers
     train_dataloaders = [
         DataLoader(train_ds, batch_size,
-        num_workers=num_workers, shuffle=shuffle, pin_memory=True, persistent_workers=persistent_workers) 
+        num_workers=train_workers, shuffle=shuffle, pin_memory=True, persistent_workers=persistent_workers) 
         for train_ds in train_datasets]
 
     valid_dataloaders = [
         DataLoader(valid_ds, batch_size, 
-        num_workers=num_workers, shuffle=False, pin_memory=True, persistent_workers=persistent_workers) 
+        num_workers=valid_workers, shuffle=False, pin_memory=True, persistent_workers=persistent_workers) 
         for valid_ds in valid_datasets]
 
     test_dataloaders = [
         DataLoader(test_ds, 1, 
-        num_workers=num_workers, shuffle=False, pin_memory=True) 
+        num_workers=test_workers, shuffle=False, pin_memory=True) 
         for test_ds in test_datasets]
 
-    img_size = (120, 360)
 
 
-    model = NvidiaModel(img_size)
-    model.to(dev)
-    opt = torch.optim.AdamW(model.parameters(), lr=3e-04)
-    loss = RMSELoss()
-    #shutil.rmtree("test_1")
-    history = tnm.History("test_1", videos, model, opt, loss, None, batch_size)
-    epochs = 30
+    if args.model == "nvidia":
+        model = NvidiaModel(img_size)
+        model.to(dev)
+    elif args.model == "augmented_nvidia":
+        blocks_args = []
+        
+        for block_arg in args.blocks_args:
+            blocks_args.append(BlockArgs(*block_arg))
+
+        model = AugmentedNvidiaModel(img_size, blocks_args)
+        model.to(dev)
+    
+    print(model.cnn_shape_out)
+    
+    #TODO add support for passing other parameters to the optimizer
+    if args.opt == "adam":
+        opt = torch.optim.Adam(model.parameters(), lr=args.lr)
+    elif args.opt == "sgd":
+        opt = torch.optim.SGD(model.parameters(), lr=args.lr)
+
+
+    if args.loss == "mse":
+        loss = nn.MSELoss()
+    elif args.loss == "rmse":
+        loss = RMSELoss()
+
+
+    history = tnm.History(args.history_out, videos, model, opt, loss, None, batch_size)
+    epochs = args.epochs
     tnm.fit(epochs, history, train_dataloaders, valid_dataloaders, dev, verbose=True)
-
 
     history.save_training_info()
     history.test_model(test_dataloaders, dev)   
+    # history.save_model()
 
 if __name__ == "__main__":
     main()
