@@ -7,14 +7,14 @@ from multiprocessing import Pool
 import os
 import shutil
 from utils import (create_dir, num_of_tensors_in_dir, read_angles, write_angles, write_angles_without_nan)
-
+import numpy as np
 
 #TODO use np.loadtxt to load angles. Save tensor in blocks of 32 or 64 frames for optimizing I/O access and memory.
 #TODO refactor all because it sucks. Save a videos in a unique tensor for contigous memory and avoid the usage of torch.stack in dataset.
 #TODO first load all the videos in ram (depend on ram size) and then save it on disk with only 1/2 processes to
 # avoid disk access overhead 
 
-def from_video_to_tensors(video_path: str, transform: T.Compose) -> list[torch.Tensor]:
+def from_video_to_tensors(video_path: str, transform: T.Compose) -> torch.Tensor:
     """
     Convert every frame of the video into a tensor and apply a transformation.
     
@@ -33,23 +33,31 @@ def from_video_to_tensors(video_path: str, transform: T.Compose) -> list[torch.T
         frames.append(transform(frame))
     
     cap.release()
-    return frames
+    return torch.stack(frames)
 
 
 def pair_frames_angles_without_nan(output_path: str, angles_file: str, frames: list[torch.Tensor]) -> None:
     """
     Pair every frame with the corresponding angles. NaN angles are eliminated with the corresponding frames.
+    This function split a video in smaller parts divided by frames erased because associated with nan angles.
     """
-    angles = read_angles(angles_file)
+    angles = np.loadtxt(angles_file, dtype=np.float64)
     i = 0
+    j = i
+    video_part = 0
+    nan_angles = np.isnan(angles)
     
-    for a in angles:
-        if math.isnan(a[0]):
-            continue
-        torch.save(frames[i], os.path.join(output_path, str(i) + ".pt"))
-        i += 1
+    while i < angles.shape[0]:
+        while not nan_angles[i] and i < angles.shape[0]:
+            i += 1
+        
+        torch.save(frames[j:i], os.path.join(output_path, str(video_part) + ".pt"))
+        np.savetxt(os.path.join(output_path, video_part))
+
+
+
     
-    write_angles_without_nan(os.path.join(output_path, "angles.txt"), angles)
+    # write_angles_without_nan(os.path.join(output_path, "angles.txt"), angles)
 
 
 
