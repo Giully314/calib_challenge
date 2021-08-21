@@ -19,7 +19,7 @@ train:
   test_workers: 0
 
   model: augmented_nvidia
-  blocks_args: null #[ [2, 64, 128, 3, 2] ] #[6, 128, 256, 3, 2], [4, 256, 512, 3, 2] ]
+  blocks_args: [ [4, 64, 128, 3, 2], [2, 128, 256, 3, 2]] # [4, 256, 512, 3, 2] ]
   linear_layers: [100, 50, 10, 2]
 
   loss: mse
@@ -28,8 +28,9 @@ train:
   # lr: 0.000001 overfit 2 samples with basic nvidia architecture
   lr: 0.0003
 
-  epochs: 50
+  epochs: 30
 
+  verbose: true
   history_out: /home/giully/Programmazione/calib_challenge/src/test_1
   save_history: true
   save_model: false
