@@ -48,9 +48,10 @@ class History:
             total_time = self.history["total_time"]
             f.write(f"\nTotal time: { total_time }")
         
+        self._save_training_curve()
         self._save_training_png()
 
-    def save_training_curve(self):
+    def _save_training_curve(self):
         train_loss = self.history["train_loss"]
         epochs = [i for i in range(len(train_loss))]
 
@@ -59,7 +60,8 @@ class History:
         ax.plot(epochs, train_loss, "b-", label="TrainLoss")
         ax.legend(loc="center right", fontsize=12) 
         ax.set_xlabel("Epoch", fontsize=16)
-        ax.set_ylabel("Train Loss", fontsize=16)
+        lr = self.opt.param_groups[0]["lr"]
+        ax.set_ylabel(f"Train Loss with lr: {lr}", fontsize=16)
         h_file = os.path.join(self.dir, "training_curve.png")
         plt.savefig(h_file, transparent=False)
         
