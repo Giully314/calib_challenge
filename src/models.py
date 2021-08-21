@@ -214,11 +214,6 @@ class NvidiaModel(nn.Module):
             # nn.BatchNorm2d(128),
             nn.ELU(),
 
-            # nn.Conv2d(128, 128, 3, 1),
-            # # nn.BatchNorm2d(128),
-            # nn.ReLU(),
-
-            # nn.AdaptiveAvgPool2d(1),
             nn.AvgPool2d(2),
 
             nn.Flatten(1)
@@ -311,7 +306,7 @@ class MNISTModel(nn.Module):
 
 
 class AugmentedNvidiaModel(nn.Module):
-    def __init__(self, img_size: list[int], blocks_args: list[BlockArgs]):
+    def __init__(self, img_size: list[int], blocks_args: list[BlockArgs], linear_args: list[tuple[int, int]]):
         super(AugmentedNvidiaModel, self).__init__()
         self.cnn = nn.ModuleList([])
 
@@ -321,32 +316,33 @@ class AugmentedNvidiaModel(nn.Module):
             
             nn.Conv2d(3, 24, 5, 2, bias=False),
             nn.BatchNorm2d(24),
-            nn.ReLU(),
+            nn.ELU(),
 
             nn.Conv2d(24, 36, 5, 2, bias=False),
             nn.BatchNorm2d(36),
-            nn.ReLU(),
+            nn.ELU(),
 
-            nn.Conv2d(36, 48, 5, 1, bias=False),
+            nn.Conv2d(36, 48, 5, 2, bias=False),
             nn.BatchNorm2d(48),
-            nn.ReLU(),
+            nn.ELU(),
 
             nn.Conv2d(48, 64, 3, 1, bias=False),
             nn.BatchNorm2d(64),
-            nn.ReLU(),
+            nn.ELU(),
 
             nn.Conv2d(64, 64, 3, 1, bias=False),
             nn.BatchNorm2d(64),
-            nn.ReLU(),
+            nn.ELU(),
             )
         )
 
-        for block_args in blocks_args:
-            self.cnn.append(ConvBlock(block_args))
-            if block_args.num_repeat > 1:  # modify block_args to keep same output size
-                block_args = block_args._replace(in_channels=block_args.out_channels, stride=1)
-            for _ in range(block_args.num_repeat - 1):
+        if blocks_args is not None:
+            for block_args in blocks_args:
                 self.cnn.append(ConvBlock(block_args))
+                if block_args.num_repeat > 1:  # modify block_args to keep same output size
+                    block_args = block_args._replace(in_channels=block_args.out_channels, stride=1)
+                for _ in range(block_args.num_repeat - 1):
+                    self.cnn.append(ConvBlock(block_args))
         
         # nn.AdaptiveAvgPool2d(1),
         self.cnn.append(nn.AvgPool2d(2, stride=2))
@@ -358,31 +354,30 @@ class AugmentedNvidiaModel(nn.Module):
         
         # self.dropout = nn.Dropout(0.5)
 
-        self.linear = nn.Sequential(
-            nn.Linear(self.cnn_shape_out, 2500),
-            nn.ReLU(),   
-            nn.Linear(2500, 1000),
-            nn.ReLU(),   
-            nn.Linear(1000, 400),
-            nn.ReLU(),     
-            nn.Linear(400, 100),
-            nn.ReLU(), 
-            nn.Linear(100, 50),
-            nn.ReLU(),
-            nn.Linear(50, 10),
-            nn.ReLU(), 
-            nn.Linear(10, 2),
-        )
+        def linear_elu(in_features, out_features):
+            return nn.Sequential(nn.Linear(in_features, out_features), nn.ELU())
+
+        self.linear = nn.ModuleList([])
+        self.linear.append(linear_elu(self.cnn_shape_out, linear_args[0]))
+        for i in range(len(linear_args[:-2])):
+            self.linear.append(linear_elu(linear_args[i], linear_args[i+1]))
+        self.linear.append(nn.Linear(linear_args[-2], linear_args[-1]))
 
     def extract_features(self, X: torch.Tensor) -> torch.Tensor:
         out = X
         for cnn in self.cnn:
             out = cnn(out)
         return out
+    
+    def evaluate_features(self, X: torch.Tensor) -> torch.Tensor:
+        out = X
+        for linear in self.linear:
+            out = linear(out)
+        return out
 
     def forward(self, X: torch.Tensor) -> torch.Tensor:
         out = self.extract_features(X)
 
         # out = self.dropout(out)
-        out = self.linear(out)
+        out = self.evaluate_features(out)
         return out
