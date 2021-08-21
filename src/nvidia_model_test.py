@@ -1,7 +1,7 @@
 from models import BlockArgs, RMSELoss, AugmentedNvidiaModel, NvidiaModel
 from torch.utils.data import DataLoader
 import torch
-from datasets import FrameDataset, get_frame_ds
+from datasets import get_frame_ds, get_range_frame_ds
 import train_nvidia_model as tnm
 import os 
 import numpy as np
@@ -10,6 +10,7 @@ import random
 import hydra
 from omegaconf import DictConfig, OmegaConf
 
+#TODO add verbose mode with timing and ecc...
 
 @hydra.main(config_path="config", config_name="nvidia_train.yaml")
 def main(cfg: DictConfig):
@@ -45,24 +46,13 @@ def main(cfg: DictConfig):
         train_datasets = [get_frame_ds(frame_dir) for frame_dir in train_dirs]
         valid_datasets = [get_frame_ds(frame_dir) for frame_dir in valid_dirs]
         test_datasets = [get_frame_ds(frame_dir) for frame_dir in test_dirs]
+    elif args.dataset == "RangeFrameDataset":
+        train_datasets = [get_range_frame_ds(frame_dir) for frame_dir in train_dirs]
+        valid_datasets = [get_range_frame_ds(frame_dir) for frame_dir in valid_dirs]
+        test_datasets = [get_frame_ds(frame_dir) for frame_dir in test_dirs]
     else:
         print("Attention no dataset provided.")
 
-
-    def seed_worker(worker_id):
-        # worker_seed = torch.initial_seed() % 2**32
-        worker_seed = seed
-        np.random.seed(worker_seed)
-        random.seed(worker_seed)
-
-    # g = torch.Generator()
-    # g.manual_seed(seed)
-
-    # w = torch.Generator()
-    # w.manual_seed(seed)
-
-    # t = torch.Generator()
-    # t.manual_seed(seed)
 
     batch_size = args.batch_size
     train_workers = args.train_workers
@@ -85,18 +75,19 @@ def main(cfg: DictConfig):
         num_workers=test_workers, shuffle=False, pin_memory=True) 
         for test_ds in test_datasets]
 
-
+    
 
     if args.model == "nvidia":
         model = NvidiaModel(img_size)
         model.to(dev)
     elif args.model == "augmented_nvidia":
-        blocks_args = []
-        
-        for block_arg in args.blocks_args:
-            blocks_args.append(BlockArgs(*block_arg))
+        blocks_args = None
+        if args.blocks_args is not None:
+            blocks_args = []
+            for block_arg in args.blocks_args:
+                blocks_args.append(BlockArgs(*block_arg))
 
-        model = AugmentedNvidiaModel(img_size, blocks_args)
+        model = AugmentedNvidiaModel(img_size, blocks_args, args.linear_layers)
         model.to(dev)
     
     print(model.cnn_shape_out)
@@ -104,6 +95,8 @@ def main(cfg: DictConfig):
     #TODO add support for passing other parameters to the optimizer
     if args.opt == "adam":
         opt = torch.optim.Adam(model.parameters(), lr=args.lr)
+    elif args.opt == "adamw":
+        opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
     elif args.opt == "sgd":
         opt = torch.optim.SGD(model.parameters(), lr=args.lr)
 
@@ -116,11 +109,13 @@ def main(cfg: DictConfig):
 
     history = tnm.History(args.history_out, videos, model, opt, loss, None, batch_size)
     epochs = args.epochs
-    tnm.fit(epochs, history, train_dataloaders, valid_dataloaders, dev, verbose=True)
+    tnm.fit(epochs, history, train_dataloaders, valid_dataloaders, dev, verbose=args.verbose)
 
-    history.save_training_info()
-    history.test_model(test_dataloaders, dev)   
-    # history.save_model()
+    if args.save_history:
+        history.save_training_info()
+        history.test_model(test_dataloaders, dev)   
+    if args.save_model:
+        history.save_model()
 
 if __name__ == "__main__":
     main()
