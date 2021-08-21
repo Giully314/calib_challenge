@@ -12,6 +12,6 @@ conversion:
   jitter: null
   translate: null
   rotation: null
-  crop: [10, 370, 110, 230]
+  crop: [0.2, 0.2, 0.2, 0.2] #(n_height * 0.2, n_height - n_height * 0.2) 
   transformations: [["crop"], ["rotation, crop"]] #list of list of names of transformations to apply
   aug_data_output: ["cropped", rotated] #a list of dirs name for output the transformations
