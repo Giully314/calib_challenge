@@ -175,7 +175,11 @@ class MNISTModel(nn.Module):
 
 
 class AugmentedNvidiaModel(nn.Module):
-    def __init__(self, img_size: list[int]):
+    """
+    Model based on the nvidia architecture model for self driving. 
+    I added temporal dependencies with lstm.
+    """
+    def __init__(self, img_size: list[int], consecutive_frames: int):
         super(AugmentedNvidiaModel, self).__init__()
 
         #Nvidia basic as starting model.
@@ -185,6 +189,7 @@ class AugmentedNvidiaModel(nn.Module):
             nn.Conv2d(3, 24, 5, 2, bias=False),
             nn.BatchNorm2d(24),
             nn.ELU(),
+            nn.MaxPool2d(2, stride=1),
 
             nn.Conv2d(24, 36, 5, 2, bias=False),
             nn.BatchNorm2d(36),
@@ -202,28 +207,50 @@ class AugmentedNvidiaModel(nn.Module):
             nn.BatchNorm2d(64),
             nn.ELU(),
 
+            nn.AvgPool2d(2, stride=1),
+
             nn.Flatten(1)
         )   
         
         h, w = img_size
-        out = self.extract_features(torch.zeros(1, 3, h, w))
+        out = self.extract_features(torch.zeros(1, 1, 3, h, w))
         self.cnn_shape_out = functools.reduce(operator.mul, list(out.shape))
-        
+
+        self.hidden_size = int(self.cnn_shape_out / 4) #temporary choose 
+        self.lstm = nn.LSTM(self.cnn_shape_out, self.hidden_size)
+
         # self.dropout = nn.Dropout(0.5)
 
         self.linear = nn.Sequential(
-            nn.Linear(self.cnn_shape_out, 100),
+            nn.Flatten(1),
+            nn.Linear(self.hidden_size * consecutive_frames, 100),
             nn.ELU(), 
             nn.Linear(100, 50),
             nn.ELU(),
             nn.Linear(50, 10),
             nn.ELU(), 
-            nn.Linear(10, 2),
+            nn.Linear(10, consecutive_frames * 2),
         )
 
-    def forward(self, X: torch.Tensor) -> torch.Tensor:
-        out = self.cnn(X)
+    def extract_features(self, X: torch.Tensor) -> torch.Tensor:
+        """
+        Process batch at each time step.
+        """
+        b, t, c, h, w = X.shape
 
+        out = []
+        for i in range(t):
+            out.append(self.cnn(X[:, i]))
+
+        #check if torch.stack cause problem or is slow 
+        # https://discuss.pytorch.org/t/torch-stack-is-very-slow-and-cause-cuda-error/28554
+        return torch.stack(out)
+
+
+    def forward(self, X: torch.Tensor) -> torch.Tensor:
+        out = self.extract_features(X)
+        out, (hn, cn) = self.lstm(out)
         # out = self.dropout(out)
+        out = out.permute(1, 0, 2)
         out = self.linear(out)
         return out
