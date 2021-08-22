@@ -1,8 +1,9 @@
-from models import BlockArgs, RMSELoss, AugmentedNvidiaModel, NvidiaModel
+from models import AugmentedNvidiaModel 
 from torch.utils.data import DataLoader
 import torch
-from datasets import get_frame_ds, get_range_frame_ds
+from datasets import get_frame_ds, get_range_frame_ds, get_consecutive_frames_ds
 import train_nvidia_model as tnm
+from custom_transform import CropVideo
 import os 
 import numpy as np
 from torch import nn
@@ -12,47 +13,24 @@ from omegaconf import DictConfig, OmegaConf
 
 #TODO add verbose mode with timing and ecc...
 
-@hydra.main(config_path="config", config_name="nvidia_train.yaml")
+@hydra.main(config_path="config", config_name="windows_nvidia_train.yaml")
 def main(cfg: DictConfig):
-    seed = 1729
-    def reset_rand_seed(): 
-        random.seed(seed)
-        torch.manual_seed(seed)
-        np.random.seed(seed)
-    reset_rand_seed()
-    #torch.use_deterministic_algorithms(True)
-
     args = cfg["train"]
+
+    if args.deterministic:
+        seed = 1729
+        def reset_rand_seed(): 
+            random.seed(seed)
+            torch.manual_seed(seed)
+            np.random.seed(seed)
+        reset_rand_seed()
+        #torch.use_deterministic_algorithms(True)
 
     dev = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     img_size = tuple(args.frame_size)
+    height, width = img_size
 
-    data_dir = args.data
-    videos = args.videos
-    train_dir = os.path.join(data_dir, args.train_dir)
-    train_dirs = [os.path.join(train_dir, d) for d in args.train_data]
-    train_dirs = [os.path.join(d, str(video)) for d in train_dirs for video in videos]
-    # train_angles_files = [os.path.join(td, "angles.txt") for td in train_dirs]
-    
-    valid_dir = os.path.join(data_dir, args.valid_data)
-    valid_dirs = [os.path.join(valid_dir, str(video)) for video in videos]
-    # valid_angles_files = [os.path.join(vd, "angles.txt") for vd in valid_dirs]
-
-    test_dir = os.path.join(data_dir, args.test_data)
-    test_dirs = [os.path.join(test_dir, str(video)) for video in videos]
-    # test_angles_files = [os.path.join(td, "angles.txt") for td in test_dirs]
-    
-    if args.dataset == "FrameDataset":
-        train_datasets = [get_frame_ds(frame_dir) for frame_dir in train_dirs]
-        valid_datasets = [get_frame_ds(frame_dir) for frame_dir in valid_dirs]
-        test_datasets = [get_frame_ds(frame_dir) for frame_dir in test_dirs]
-    elif args.dataset == "RangeFrameDataset":
-        train_datasets = [get_range_frame_ds(frame_dir) for frame_dir in train_dirs]
-        valid_datasets = [get_range_frame_ds(frame_dir) for frame_dir in valid_dirs]
-        test_datasets = [get_frame_ds(frame_dir) for frame_dir in test_dirs]
-    else:
-        print("Attention no dataset provided.")
-
+    verbose = args.verbose
 
     batch_size = args.batch_size
     train_workers = args.train_workers
@@ -60,35 +38,55 @@ def main(cfg: DictConfig):
     test_workers = args.test_workers
     shuffle = args.shuffle
     persistent_workers = args.persistent_workers
-    train_dataloaders = [
+
+    data_dir = args.data
+    videos = args.train_videos
+    videos_parts = args.videos_parts
+    train_videos = [os.path.join(data_dir, os.path.join(str(video), str(part) + ".pt")) 
+                    for video, video_parts in zip(videos, videos_parts) for part in video_parts]
+    train_angles = [os.path.join(data_dir, os.path.join(str(video), str(part) + ".txt")) 
+                            for video, video_parts in zip(videos, videos_parts) for part in video_parts]
+    
+    consecutive_frames = 3
+    skips = 1
+    
+    trf_crop = CropVideo(int(width * 0.2), int(width - width * 0.2), int(height *0.45), int(height - height * 0.2))
+    
+    img_size = (trf_crop.y2 - trf_crop.y1, trf_crop.x2 - trf_crop.x1)
+
+    train_dss = [get_consecutive_frames_ds(video_path, angles_path, consecutive_frames, skips, trf_crop) 
+                for video_path, angles_path in zip(train_videos, train_angles)]
+    
+    train_dls = [
         DataLoader(train_ds, batch_size,
         num_workers=train_workers, shuffle=shuffle, pin_memory=True, persistent_workers=persistent_workers) 
-        for train_ds in train_datasets]
+        for train_ds in train_dss]
 
-    valid_dataloaders = [
-        DataLoader(valid_ds, batch_size, 
-        num_workers=valid_workers, shuffle=False, pin_memory=True, persistent_workers=persistent_workers) 
-        for valid_ds in valid_datasets]
 
-    test_dataloaders = [
-        DataLoader(test_ds, 1, 
-        num_workers=test_workers, shuffle=False, pin_memory=True) 
-        for test_ds in test_datasets]
 
+    # if args.dataset == "FrameDataset":
+    #     train_datasets = [get_frame_ds(frame_dir) for frame_dir in train_dirs]
+    #     valid_datasets = [get_frame_ds(frame_dir) for frame_dir in valid_dirs]
+    # elif args.dataset == "RangeFrameDataset":
+    #     train_datasets = [get_range_frame_ds(frame_dir) for frame_dir in train_dirs]
+    #     valid_datasets = [get_range_frame_ds(frame_dir) for frame_dir in valid_dirs]
+    # elif args.dataset == "ConsecutiveFrameDataset":
+    #     train_datasets = [get_consecutive_frames_ds(frame_dir) for frame_dir in train_dirs]
+    #     valid_datasets = [get_frame_ds(frame_dir) for frame_dir in valid_dirs]
+
+    valid_dl = None
+    if args.valid_model:
+        valid_dir = os.path.join(data_dir, args.valid_data)
+        valid_dirs = [os.path.join(valid_dir, str(video)) for video in videos]
+        valid_angles_files = [os.path.join(vd, "angles.txt") for vd in valid_dirs]
+        valid_datasets = [get_frame_ds(frame_dir) for frame_dir in valid_dirs]
+        valid_dl = [DataLoader(valid_ds, batch_size, 
+            num_workers=valid_workers, shuffle=False, pin_memory=True, persistent_workers=persistent_workers) 
+            for valid_ds in valid_datasets]
     
 
-    if args.model == "nvidia":
-        model = NvidiaModel(img_size)
-        model.to(dev)
-    elif args.model == "augmented_nvidia":
-        blocks_args = None
-        if args.blocks_args is not None:
-            blocks_args = []
-            for block_arg in args.blocks_args:
-                blocks_args.append(BlockArgs(*block_arg))
-
-        model = AugmentedNvidiaModel(img_size, blocks_args, args.linear_layers)
-        model.to(dev)
+    model = AugmentedNvidiaModel(img_size, consecutive_frames)
+    model.to(dev)
     
     print(model.cnn_shape_out)
     
@@ -100,20 +98,23 @@ def main(cfg: DictConfig):
     elif args.opt == "sgd":
         opt = torch.optim.SGD(model.parameters(), lr=args.lr)
 
+    loss = nn.MSELoss()
 
-    if args.loss == "mse":
-        loss = nn.MSELoss()
-    elif args.loss == "rmse":
-        loss = RMSELoss()
-
-
-    history = tnm.History(args.history_out, videos, model, opt, loss, None, batch_size)
+    history = tnm.History(args.history_out, videos, args.valid_video, args.test_video, model, opt, loss, None, batch_size)
     epochs = args.epochs
-    tnm.fit(epochs, history, train_dataloaders, valid_dataloaders, dev, verbose=args.verbose)
+    
+    tnm.fit(epochs, history, train_dls, valid_dl, dev, verbose=verbose)
 
     if args.save_history:
         history.save_training_info()
-        history.test_model(test_dataloaders, dev)   
+    
+    
+    if args.test_model:
+        #load test data here
+        test_dl = None
+        history.test_model(test_dl, dev)   
+    
+    
     if args.save_model:
         history.save_model()
 
