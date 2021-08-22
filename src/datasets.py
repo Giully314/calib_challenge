@@ -8,29 +8,40 @@ import numpy as np
 
 
 class ConsecutiveFramesDataset(Dataset):
-    def __init__(self, video_path: str, angles_path: str, consecutive_frames: int = 3, step: int = 2, 
+    """
+    Returns a sequence of frames.
+    video_path: path of the tensor (converted from a video)
+    angles_path: path of the angles associated to the video.
+    consecutive_frames: how many consecutive frames to consider.
+    skips: how many frames skips between 2 consecutive frames.
+    transform: transformation applied before returning the frames.
+    """
+
+    def __init__(self, video_path: str, angles_path: str, consecutive_frames: int = 3, skips: int = 2, 
                  transform : T.Compose = None):
         self.frames = torch.load(video_path)
         self.angles = torch.from_numpy(np.loadtxt(angles_path, dtype=np.float32))
         self.transform = transform
         self.consecutive_frames = consecutive_frames
-        self.step = step
+        self.skips = skips
         
     
     def __getitem__(self, idx):
-        frames = self.frames[idx : idx + (self.consecutive_frames * self.step) : self.step]
-        angles = torch.stack(self.angles[idx : idx + (self.consecutive_frames * self.step) : self.step])
+        frames = self.frames[idx : idx + (self.consecutive_frames * self.skips) : self.skips]
+        angles = self.angles[idx : idx + (self.consecutive_frames * self.skips) : self.skips].view(-1)
+        
+        #TODO add the transformation to angles too, if the frame is flipped.
         if self.transform is not None:
             frames = self.transform(frames)
         return (frames, angles)
         
         
     def __len__(self):
-        return self.frames.shape[0] - (self.consecutive_frames * self.step)
+        return self.frames.shape[0] - (self.consecutive_frames * self.skips)
 
 
-def get_consecutive_frames_ds(video_path: str, angles_path: str, consecutive_frames: int = 3, step:int = 2, transform: T.Compose = None) -> ConsecutiveFramesDataset:
-    return ConsecutiveFramesDataset(video_path, angles_path, consecutive_frames, step, transform)    
+def get_consecutive_frames_ds(video_path: str, angles_path: str, consecutive_frames: int = 3, skips:int = 2, transform: T.Compose = None) -> ConsecutiveFramesDataset:
+    return ConsecutiveFramesDataset(video_path, angles_path, consecutive_frames, skips, transform)    
 
 
 
