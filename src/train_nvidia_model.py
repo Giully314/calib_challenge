@@ -38,6 +38,9 @@ class History:
 
     def save_training_info(self):
         file_txt = os.path.join(self.dir, "history.txt")
+
+        valid = len(self.history["valid_loss"]) > 0
+
         with open(file_txt, "w") as f:
             s = f"{repr(self.model)}\n\n"
             s += f"{repr(self.opt)}\n\n"
@@ -52,8 +55,12 @@ class History:
                 s += f"Valid video {self.valid_video}\n\n"
 
             s += "Training:\n"
-            for i, (train_loss, valid_loss) in enumerate(zip(self.history["train_loss"], self.history["valid_loss"])):
-                s += f"Epoch {i}\nTrain loss: {train_loss}\nValid loss: {valid_loss}\n\n"
+            if valid:
+                for i, (train_loss, valid_loss) in enumerate(zip(self.history["train_loss"], self.history["valid_loss"])):
+                    s += f"Epoch {i}\nTrain loss: {train_loss}\nValid loss: {valid_loss}\n\n"
+            else:
+                for i, train_loss  in enumerate(self.history["train_loss"]):
+                    s += f"Epoch {i}\nTrain loss: {train_loss}\n\n"
 
             total_time = self.history["total_time"]
             s += f"\nTotal time: { total_time }"
@@ -61,7 +68,7 @@ class History:
             f.write(s)
 
         #The training process used a validation set so it's safe to compare the training loss with the validation loss.
-        if len(self.history["valid_loss"]) > 0:
+        if valid:
             self.save_training_valid_curve() 
 
         #Save only the training curve.
@@ -77,7 +84,7 @@ class History:
         ax.legend(loc="center right", fontsize=12) 
         ax.set_xlabel("Epoch", fontsize=16)
         lr = self.opt.param_groups[0]["lr"]
-        ax.set_ylabel(f"Train Loss with lr: {lr}", fontsize=16)
+        ax.set_ylabel(f"Train Loss with lr {lr} and min {min(train_loss)}", fontsize=16)
         h_file = os.path.join(self.dir, "training_curve.png")
         plt.savefig(h_file, transparent=False)
     
