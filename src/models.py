@@ -223,8 +223,14 @@ class AugmentedNvidiaModel(nn.Module):
 
         self.linear = nn.Sequential(
             nn.Flatten(1),
-            nn.Linear(self.hidden_size * consecutive_frames, 100),
+            nn.Linear(self.hidden_size * consecutive_frames, 1000),
+            nn.ELU(),
+            nn.Linear(1000, 500),
             nn.ELU(), 
+            nn.Linear(500, 300),
+            nn.ELU(),
+            nn.Linear(300, 100),
+            nn.ELU(),
             nn.Linear(100, 50),
             nn.ELU(),
             nn.Linear(50, 10),
