@@ -175,7 +175,7 @@ class MNISTModel(nn.Module):
 
 
 class AugmentedNvidiaModel(nn.Module):
-    def __init__(self, img_size: list[int], blocks_args: list[BlockArgs], linear_args: list[tuple[int, int]]):
+    def __init__(self, img_size: list[int]):
         super(AugmentedNvidiaModel, self).__init__()
 
         #Nvidia basic as starting model.
