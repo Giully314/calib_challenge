@@ -32,3 +32,13 @@ class Crop:
     
     def __call__(self, img):
         return crop(img, self.x1, self.x2, self.y1, self.y2)
+
+class CropVideo:
+    def __init__(self, x1, x2, y1, y2):
+        self.x1 = x1
+        self.x2 = x2
+        self.y1 = y1
+        self.y2 = y2
+    
+    def __call__(self, img):
+        return img[:, :, self.y1 : self.y2, self.x1 : self.x2]
