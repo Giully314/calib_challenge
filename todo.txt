@@ -1,3 +1,6 @@
 Add support for Hydra, config file management. (Done for conversion.py)
-Track training of the model with all info (optimizer, learning rate, batch size, ecc), saving the progress (train loss, val loss) 
-to a file (Done, need only to test if it works).
+
+Track training of the model with all info (optimizer, learning rate, batch size, ecc), saving the progress (train loss, val loss)
+to a file (Done).
+
+Add support for multiple run with differenst Hydra config files.
