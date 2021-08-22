@@ -8,11 +8,10 @@ import numpy as np
 
 
 class ConsecutiveFramesDataset(Dataset):
-    def __init__(self, frames_dir: str, angles_file: str, consecutive_frames: int = 3, step: int = 2, 
+    def __init__(self, video_path: str, angles_path: str, consecutive_frames: int = 3, step: int = 2, 
                  transform : T.Compose = None):
-        num_frames = ut.num_of_tensors_in_dir(frames_dir)
-        self.frames = torch.stack(ut.load_frames(frames_dir, 0, num_frames))
-        self.angles = torch.tensor(np.loadtxt(angles_file, dtype=np.float32))
+        self.frames = torch.load(video_path)
+        self.angles = torch.from_numpy(np.loadtxt(angles_path, dtype=np.float32))
         self.transform = transform
         self.consecutive_frames = consecutive_frames
         self.step = step
@@ -27,60 +26,54 @@ class ConsecutiveFramesDataset(Dataset):
         
         
     def __len__(self):
-        return len(self.frames) - (self.consecutive_frames * self.step) + 1
+        return self.frames.shape[0] - (self.consecutive_frames * self.step)
 
 
-def get_consecutive_frames_ds(frames_dir: str, consecutive_frames: int = 3, step:int = 2, transform: T.Compose = None) -> ConsecutiveFramesDataset:
-    return ConsecutiveFramesDataset(frames_dir, os.path.join(frames_dir, "angles.txt"), consecutive_frames, step, transform)    
+def get_consecutive_frames_ds(video_path: str, angles_path: str, consecutive_frames: int = 3, step:int = 2, transform: T.Compose = None) -> ConsecutiveFramesDataset:
+    return ConsecutiveFramesDataset(video_path, angles_path, consecutive_frames, step, transform)    
 
 
 
 class FrameDataset(Dataset):
-    def __init__(self, frames_dir, angles_file, transform = None):
-        self.frames = torch.stack(ut.load_frames(frames_dir, 0, ut.num_of_tensors_in_dir(frames_dir)))
-        self.angles = torch.tensor(np.loadtxt(angles_file, np.float32))
-        # self.frames_dir = frames_dir
+    def __init__(self, video_path, angles_file, transform = None):
+        self.frames = torch.load(video_path)
+        self.angles = torch.from_numpy(np.loadtxt(angles_file, np.float32))
         self.transform = transform
 
     def __getitem__(self, idx):
-        # torch.load(os.path.join(self.frames_dir, str(idx) + ".pt"))
-        # return (torch.load(os.path.join(self.frames_dir, str(idx) + ".pt")), self.angles[idx]) 
         frame = self.frames[idx]
         if self.transform is not None:
             frame = self.transform(frame)
         return (frame, self.angles[idx])
 
     def __len__(self):
-        return len(self.angles)
+        return self.frames.shape[0]
 
 
-def get_frame_ds(frames_dir: str, transform: T.Compose = None) -> FrameDataset:
-    return FrameDataset(frames_dir, os.path.join(frames_dir, "angles.txt"), transform) 
+def get_frame_ds(video_path: str, angles_path: str, transform: T.Compose = None) -> FrameDataset:
+    return FrameDataset(video_path, angles_path, transform) 
 
 
 class RangeFrameDataset(Dataset):
-    def __init__(self, frames_dir, angles_file, start, end):
-        self.frames = torch.stack(ut.load_frames(frames_dir, start, end))
-        self.angles = torch.tensor(np.loadtxt(angles_file, np.float32))
+    def __init__(self, video_path: str, angles_path: str, start: int, end: int):
+        self.frames = torch.load(video_path)[start:end].detach.clone()
+        self.angles = torch.from_numpy(np.loadtxt(angles_path, np.float32))[start:end].detach().clone()
 
     def __getitem__(self, idx):
-        # torch.load(os.path.join(self.frames_dir, str(idx) + ".pt"))
-        # return (torch.load(os.path.join(self.frames_dir, str(idx) + ".pt")), self.angles[idx]) 
-        frame = self.frames[idx]
-        return (frame, self.angles[idx])
+        return (self.frames[idx], self.angles[idx])
 
     def __len__(self):
         return len(self.frames)
 
 
-def get_range_frame_ds(frames_dir: str) -> FrameDataset:
-    return RangeFrameDataset(frames_dir, os.path.join(frames_dir, "angles.txt"), 0, 2) 
+def get_range_frame_ds(video_path: str, angles_path: str, start=0, end=2) -> FrameDataset:
+    return RangeFrameDataset(video_path, angles_path, start, end) 
 
 
 
-def get_dl(ds, batch_size=32, shuffle=False, num_workers=2, pin_memory=True) -> DataLoader:
+def get_dl(ds, batch_size=32, shuffle=False, num_workers=2, persistent_workers=True, pin_memory=True) -> DataLoader:
     return DataLoader(ds, batch_size=batch_size, shuffle=shuffle, pin_memory=pin_memory, 
-                     num_workers=num_workers)
+                     num_workers=num_workers, persistent_workers=persistent_workers)
 
 
 
