@@ -34,10 +34,12 @@ def setup_videos(video_paths: list[str], output_paths: list[str], angles_paths: 
     Convert every video in video_paths and pair with the corresponding angles. Save the tensors in output_paths.
     """
     for video_path, output_path, angles_path, selected_frames_path in zip(video_paths, output_paths, angles_paths, selected_frames_paths):
+        print(f"Start conversion of {video_path}.")
+        
         frames = from_video_to_tensors(video_path, transform)
         angles = np.loadtxt(angles_path, dtype=np.float64)
-        selected_frames = np.loadtxt(selected_frames_path, dtype=np.int32)
-
+        selected_frames = np.reshape(np.loadtxt(selected_frames_path, dtype=np.int32), (-1, 2))
+        
         for i in range(selected_frames.shape[0]):
             k, j = selected_frames[i]
             angles_without_nan = np.invert(np.isnan(angles[k:j, 0]))
