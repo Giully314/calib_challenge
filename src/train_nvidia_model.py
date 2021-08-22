@@ -78,7 +78,7 @@ class History:
         train_loss = self.history["train_loss"]
         epochs = [i for i in range(len(train_loss))]
 
-        fig = plt.figure(figsize=(16, 14), dpi=80)
+        fig = plt.figure(figsize=(20, 18), dpi=100)
         ax = fig.add_subplot()
         ax.plot(epochs, train_loss, "b-", label="TrainLoss")
         ax.legend(loc="center right", fontsize=12) 
