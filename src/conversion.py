@@ -33,21 +33,15 @@ from omegaconf import DictConfig, OmegaConf
 
 #If normalize or crop (or both) are specified, they are applied at the end of every other transformation
 
-@hydra.main(config_path="config", config_name="nvidia_setup.yaml")
+@hydra.main(config_path="config", config_name="windows_nvidia_setup.yaml")
 def do_conversion(cfg: DictConfig):
     args = cfg["conversion"]
-    num_of_cpu = args.cpus
-    merge = args.merge
     HEIGHT = 874 
     WIDTH = 1164
     height_div = args.height_divisor
     width_div = args.width_divisor
     new_height = int(HEIGHT // height_div)
     new_width = int(WIDTH // width_div)
-
-    train_split = args.train_split
-    test_split = args.test_split
-
         
     color_repr = BGRToYUV() if args.yuv else bgr_to_rgb   
     trf_resize = T.Resize((new_height, new_width), interpolation=InterpolationMode.BICUBIC)
@@ -58,8 +52,10 @@ def do_conversion(cfg: DictConfig):
     data_dir = args.output
     ut.create_dir(data_dir)
     video_dir = args.input
+    selected_frames_dir = args.selected_frames
 
     videos = [os.path.join(video_dir, str(video_name) + ".hevc") for video_name in video_names]
+    selected_frames = [os.path.join(selected_frames_dir, str(video_name) + ".txt") for video_name in video_names]
     angles = [os.path.join(video_dir, str(video_name) + ".txt") for video_name in video_names]
     outputs = [os.path.join(data_dir, str(video_name)) for video_name in video_names]
     ut.create_dirs(outputs)
@@ -69,137 +65,10 @@ def do_conversion(cfg: DictConfig):
     #Setup videos 
     print("Start setup videos.")
     timer.start()
-    fp.setup_videos(videos, outputs, angles, basic_transform, num_of_cpu=num_of_cpu)
+    fp.setup_videos(videos, outputs, angles, selected_frames, basic_transform)
     timer.end()
     print(f"Finished setup video in {timer}")
-
-
-    #Split dataset
-    print("Start split data.")
-    timer.start()
-    fp.split_train_valid_test(outputs, data_dir, train_split, test_split, num_of_cpu=num_of_cpu)
-    timer.end()
-    print(f"Finished split data in {timer}.")
-
-    transformations = {}
-
-    if args.normalization is not None:
-        trf_normalize = T.Normalize(mean=args.normalization[0], std=args.normalizations[1], inplace=True)
-        transformations["normalization"] = trf_normalize
-
-    if args.rotation is not None:
-        a1 = args.rotation[0]
-        a2 = args.rotation[1]
-        trf_rotation = T.RandomRotation((a1, a2), interpolation=InterpolationMode.BILINEAR)
-        transformations["rotation"] = trf_rotation
-
-    if args.jitter is not None:
-        brightness = tuple(args.jitter[0])
-        contrast = tuple(args.jitter[1])
-        saturation = tuple(args.jitter[2])
-        hue = tuple(args.jitter[3])
-        trf_jitter = T.ColorJitter(brightness, contrast, saturation, hue)
-        transformations["jitter"] = trf_jitter
-
-    if args.translate is not None:
-        translate_x = args.translate[0]
-        translate_y = args.translate[1]
-        trf_translate = T.RandomAffine(0, (translate_x, translate_y), interpolation=InterpolationMode.BILINEAR)
-        transformations["translate"] = trf_translate
-
-    if args.crop is not None:
-        crop_y1 = int(new_height * args.crop[0])
-        crop_y2 = int(new_height - new_height * args.crop[1])
-        crop_x1 = int(new_width * args.crop[2])
-        crop_x2 = int(new_width - new_width * args.crop[3])
-        trf_crop = Crop(crop_x1, crop_x2, crop_y1, crop_y2)
-        transformations["crop"] = trf_crop
-
-    #augment data
-    basic_train_dir = os.path.join(data_dir, "basic_train")
-    train_dir = os.path.join(data_dir, "train")
-    ut.create_dir(train_dir)
-    inputs = [os.path.join(basic_train_dir, str(video_name)) for video_name in video_names]
-    for transform, output in zip(args.transformations, args.aug_data_output):
-        print(f"Start augment frames with {transform}.")
-        timer.start()
-        output = os.path.join(train_dir, output)
-        ut.create_dir(output)
-        output_aug_data = [os.path.join(output, str(video_name)) for video_name in video_names]
-        ut.create_dirs(output_aug_data)
-        trfs = [transformations[t] for t in transform]
-        full_transform = T.Compose(trfs)
-        fp.augment_videos(inputs, output_aug_data, full_transform, num_of_cpu)
-        timer.end()
-        print(f"Finished augment frames with {transform} in {timer}.")
-
-    #validation/test set preprocessing only with crop and normalize (if specified)
-    #TODO for now i specify only the crop for preprocessing. Write a better generalized version
-
-    if "crop" in args.transformations:
-        print("Start cropping validation set.")
-        timer.start()
-        valid_dir = os.path.join(data_dir, "valid")
-        valid_dirs = [os.path.join(valid_dir, str(video_name)) for video_name in video_names]
-        fp.augment_videos(valid_dirs, valid_dirs, transform["crop"], num_of_cpu=num_of_cpu)
-        timer.end()
-        print(f"Finished cropping validation set in {timer}")
-
-        print("Start cropping test set.")
-        timer.start()
-        test_dir = os.path.join(data_dir, "test")
-        test_dirs = [os.path.join(test_dir, str(video_name)) for video_name in video_names]
-        fp.augment_videos(test_dirs, test_dirs, transform["crop"], num_of_cpu=num_of_cpu)
-        timer.end()
-        print(f"Finished cropping test set in {timer}")
-
-    #TODO check if valid/test set needs some sort of aug preprocessing.
-    #normalize validation and test set
-    # print("Start normalize validation set.")
-    # timer.start()
-    # valid_dir = os.path.join(data_dir, "valid")
-    # valid_dirs = [os.path.join(valid_dir, str(video_name)) for video_name in video_names]
-    # print(valid_dirs)
-    # fp.augment_videos(valid_dirs, valid_dirs, trf_standard, num_of_cpu=num_of_cpu)
-    # timer.end()
-    # print(f"Finished normalize validation set in {timer}")
-
-    # print("Start normalize test set.")
-    # timer.start()
-    # test_dir = os.path.join(data_dir, "test")
-    # test_dirs = [os.path.join(test_dir, str(video_name)) for video_name in video_names]
-    # fp.augment_videos(test_dirs, test_dirs, trf_standard, num_of_cpu=num_of_cpu)
-    # timer.end()
-    # print(f"Finished normalize test set in {timer}")
-
-    ut.delete_dirs(outputs)
-
-    #TODO refactor merge.
-    # if merge:
-    #     print("Start merge frames.")
-    #     timer.start()
-    #     #TODO remove empty directories.
-    #     fp.merge_frames(merge_dirs, os.path.join(data_dir, "train_merged_frames"))
-    #     fp.merge_frames(valid_dirs, os.path.join(data_dir), "valid_merged_frames")
-    #     fp.merge_frames(test_dirs, os.path.join(data_dir), "test_merged_frames")
-    #     timer.end()
-    #     print(f"Finished merge frames in {timer}.")
-
-    #     ut.delete_dir(test_dir)
-    #     ut.delete_dir(valid_dir)
-    #     ut.delete_dir(basic_train_dir)
-    #     ut.delete_dirs(standard_dirs)
-
-    #     if trf_translate is not None:
-    #         ut.delete_dirs(translate_dirs)
         
-    #     if trf_jitter is not None:
-    #         ut.delete_dirs(jitter_dirs)
-
-    #     if trf_rotation is not None:
-    #         ut.delete_dirs(rotation_dirs)
-        
-
 
 
 if __name__ == "__main__":
