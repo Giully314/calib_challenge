@@ -8,17 +8,25 @@ import models
 import os
 from matplotlib import pyplot as plt
 
-#Note: this file is for the training of the intermediate model (nvidia) for estimate NaN values.
-
-
 #TODO Function that train and test the model to automate the process as mush as i can.
 
 #TODO Add test evaluation values. (Inherent of what the model needs to do.)
+
 class History:
-    def __init__(self, dir: str, train_videos: list[str], model: nn.Module, opt: torch.optim, loss_func: nn.Module, 
+    """
+    Class that stores information about: model, loss, optimizer, scheduler, batch_size, 
+    what videos used for training, valid video, test video.
+    All the graphs about the training process with training loss and valid loss compared or not.
+    Test informations with the result and the respectives graphs.
+    """
+
+    def __init__(self, dir: str, train_videos: list[str], valid_video: str, test_video: str, 
+                    model: nn.Module, opt: torch.optim, loss_func: nn.Module, 
                     scheduler: torch.optim.lr_scheduler, batch_size: int):
         self.dir = dir
-        self.train_videos = train_videos    
+        self.train_videos = train_videos
+        self.valid_video = valid_video
+        self.test_video = test_video    
         self.model = model
         self.opt = opt
         self.loss_func = loss_func
@@ -39,19 +47,27 @@ class History:
                 s += f"{str(type(self.scheduler))}"
                 s += f"\n{self.scheduler}\n\n"
 
-            f.write(s)
+            s += f"Training videos {self.train_videos}\n"
+            if self.valid_video is not None:
+                s += f"Valid video {self.valid_video}\n\n"
 
-            f.write("Training:\n")
+            s += "Training:\n"
             for i, (train_loss, valid_loss) in enumerate(zip(self.history["train_loss"], self.history["valid_loss"])):
-                f.write(f"Epoch {i}\nTrain loss: {train_loss}\nValid loss: {valid_loss}\n\n")
+                s += f"Epoch {i}\nTrain loss: {train_loss}\nValid loss: {valid_loss}\n\n"
 
             total_time = self.history["total_time"]
-            f.write(f"\nTotal time: { total_time }")
-        
-        self._save_training_curve()
-        self._save_training_png()
+            s += f"\nTotal time: { total_time }"
 
-    def _save_training_curve(self):
+            f.write(s)
+
+        #The training process used a validation set so it's safe to compare the training loss with the validation loss.
+        if len(self.history["valid_loss"]) > 0:
+            self.save_training_valid_curve() 
+
+        #Save only the training curve.
+        self.save_training_curve()
+
+    def save_training_curve(self):
         train_loss = self.history["train_loss"]
         epochs = [i for i in range(len(train_loss))]
 
@@ -64,14 +80,9 @@ class History:
         ax.set_ylabel(f"Train Loss with lr: {lr}", fontsize=16)
         h_file = os.path.join(self.dir, "training_curve.png")
         plt.savefig(h_file, transparent=False)
-        
-
-    def save_model(self) -> None:
-        path = os.path.join(self.dir, "model_state_dict.pt")
-        models.save_model(self.model, path)
     
     
-    def _save_training_png(self):
+    def save_training_valid_curve(self):
         #TODO create a new figure and then plot.
         train_loss = self.history["train_loss"]
         val_loss = self.history["valid_loss"]
@@ -85,28 +96,28 @@ class History:
         ax.set_xlabel("Epoch", fontsize=16)
         ax.set_ylabel("Loss", fontsize=16)
         ax.axis([0, len(epochs)+1, 0, max(max(val_loss), max(train_loss)) + 0.01])
-        h_file = os.path.join(self.dir, "history.png")
+        h_file = os.path.join(self.dir, "training_valid_curve.png")
         plt.savefig(h_file, transparent=False)
 
 
-    #test_model assume dataloaders to have batch_size = 1
-    def test_model(self, test_dls: list[DataLoader], dev: torch.device) -> str:
+    #TODO refactor and check the test section. It depends on what and how the model output.
+    def test_model(self, test_dl: DataLoader, dev: torch.device) -> str:
         output_dir = os.path.join(self.dir, "results") 
-        output_inferences = [os.path.join(output_dir, str(video) + ".txt") for video in self.train_videos]
-        output_tests = [os.path.join(output_dir, str(video) + "_test.txt") for video in self.train_videos]
         output_result = os.path.join(output_dir, "result.txt")
+        output_inference = os.path.join(output_dir, "inference.txt")
+        output_test = os.path.join(output_dir, "gt.txt")
 
-        ut.create_dir(output_dir)
+        ut.create_dir(output_dir) 
         #TODO compute only 1 time the test set.
 
-        for test_dl, output_inference in zip(test_dls, output_inferences):
-            ut.inference_and_save(self.model, test_dl, output_inference, dev) 
-        
-        for output_test, test_dl in zip(output_tests, test_dls):
-            with open(output_test, "w") as f:
-                for x, y in test_dl:
-                    for i in range(y.shape[0]):
-                        f.write(f"{y[i, 0].item()} {y[i, 1].item()}\n")
+        ut.inference_and_save(self.model, test_dl, output_inference, dev) 
+      
+        with open(output_test, "w") as out_test, open(output_inference, "w") as out_inf:
+            for x, y in test_dl:
+                y_pred = self.model(x)
+                for i in range(y.shape[0]):
+                    out_test.write(f"{y[i, 0].item()} {y[i, 1].item()}\n")
+                    
 
         mses = []
         zero_mses = []
@@ -163,6 +174,9 @@ class History:
             h_file = os.path.join(results_dir, str(video) + ".png")
             plt.savefig(h_file, transparent=False)
 
+    def save_model(self) -> None:
+        path = os.path.join(self.dir, "model_state_dict.pt")
+        models.save_model(self.model, path)
 
 
     def __getitem__(self, idx):
@@ -181,8 +195,9 @@ class History:
 
 
 def loss_batch(model: nn.Module, loss_func: nn.Module, xb: torch.Tensor, yb: torch.Tensor, opt: torch.optim = None):
-    loss = loss_func(model(xb), yb)
-    
+    y_pred = model(xb)
+    loss = loss_func(y_pred, yb)
+
     if opt is not None:
         opt.zero_grad()
         loss.backward()
@@ -191,7 +206,6 @@ def loss_batch(model: nn.Module, loss_func: nn.Module, xb: torch.Tensor, yb: tor
     return loss.item(), len(xb)
 
 #TODO: currently the to device operation is done async. Check if there are any speed up.
-#TODO: use the string info for history recap instaed of store sparse information.
 def fit(epochs: int, history: History, train_dls: list[DataLoader], valid_dls: list[DataLoader], dev: torch.device,
         verbose: bool = True) -> History:
     """
@@ -209,19 +223,19 @@ def fit(epochs: int, history: History, train_dls: list[DataLoader], valid_dls: l
         if verbose:
             print(f"Start epoch #{epoch}...")
         
-        info = ""
         model.train()
         train_loss = 0       
         for train_dl in train_dls:
             losses, nums = zip(*[loss_batch(model, loss_func, xb.to(dev, non_blocking=True), yb.to(dev, non_blocking=True), opt) 
                                 for xb, yb in train_dl])
             train_loss += np.sum(np.multiply(losses, nums)) / np.sum(nums)
-            
-        history["train_loss"].append(train_loss)
-        info += f"Train_loss: {train_loss}\n"
         
         if scheduler is not None:
             scheduler.step()
+
+        history["train_loss"].append(train_loss)
+        info = f"Train_loss: {train_loss}\n"
+    
 
         if valid_dls is not None:
             model.eval()
