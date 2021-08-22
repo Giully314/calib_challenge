@@ -57,11 +57,16 @@ def main(cfg: DictConfig):
     train_dss = [get_consecutive_frames_ds(video_path, angles_path, consecutive_frames, skips, trf_crop) 
                 for video_path, angles_path in zip(train_videos, train_angles)]
     
+    ds = train_dss[0]
+    ds.frames = ds.frames[0:256]
+    ds.angles = ds.angles[0:256]
+
     train_dls = [
         DataLoader(train_ds, batch_size,
         num_workers=train_workers, shuffle=shuffle, pin_memory=True, persistent_workers=persistent_workers) 
         for train_ds in train_dss]
 
+    
 
 
     # if args.dataset == "FrameDataset":
