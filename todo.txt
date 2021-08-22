@@ -4,3 +4,9 @@ Track training of the model with all info (optimizer, learning rate, batch size,
 to a file (Done).
 
 Add support for multiple run with differenst Hydra config files.
+
+Overfit the model.
+
+Regularize the model.
+
+Hyperparameters search with ray.
