@@ -57,7 +57,7 @@ class ConvBlock(nn.Module):
         self.norm2 = nn.BatchNorm2d(self.block_args.out_channels)
         
         
-        self.activation_fun = nn.ReLU(inplace=True)
+        self.activation_fun = nn.ELU(inplace=True)
         self.proj = None 
         if self.block_args.stride != 1 or (self.block_args.in_channels != self.block_args.out_channels):
             self.proj = nn.Sequential(
@@ -82,108 +82,6 @@ class ConvBlock(nn.Module):
         
         return out
 
-    
-
-class Endurance(nn.Module):
-    def __init__(self, blocks_args: list[BlockArgs], global_params: GlobalParams):
-        super(Endurance, self).__init__()
-        assert isinstance(blocks_args, list), 'blocks_args should be a list'
-        assert len(blocks_args) > 0, 'block args must be greater than 0'
-        
-        self.blocks_args = blocks_args
-        self.global_params = global_params
-
-        self.conv_first_layers = nn.ModuleList([])
-
-        for conv_layer in self.global_params.conv_layers:
-            for layer in conv_layer:
-                self.conv_first_layers.append(layer)
-    
-        self.conv_blocks = nn.ModuleList([])
-        for i, block_args in enumerate(self.blocks_args):
-            block_args = block_args._replace(
-                in_channels=round_filters(block_args.in_channels, self.global_params),
-                out_channels=round_filters(block_args.out_channels, self.global_params),
-                num_repeat=round_repeats(block_args.num_repeat, self.global_params)
-            )
-            self.conv_blocks.append(ConvBlock(block_args))
-
-            if block_args.num_repeat > 1:  # modify block_args to keep same output size
-                block_args = block_args._replace(in_channels=block_args.out_channels, stride=1)
-            for _ in range(block_args.num_repeat - 1):
-                self.conv_blocks.append(ConvBlock(block_args))
-        
-
-        self.pooling_layer = self.global_params.final_pooling_layer
-        self.flatten = nn.Flatten(1)
-        h, w = self.global_params.image_size
-        out = self.extract_features(torch.zeros(1, 1, 3, h, w))
-        cnn_shape_out = functools.reduce(operator.mul, list(out.shape))
-
-        self.hidden_dim = self.global_params.hidden_dim
-        self.lstm_num_layers = self.global_params.num_recurrent_layers
-        self.lstm = nn.LSTM(cnn_shape_out, self.hidden_dim, num_layers=self.lstm_num_layers, dropout=self.global_params.rec_dropout)
-        self.hidden_state = torch.zeros(self.lstm_num_layers, 1, self.hidden_dim)
-        self.cell_state = torch.zeros(self.lstm_num_layers, 1, self.hidden_dim)
-
-        self.dropout = nn.Dropout(self.global_params.dropout)
-        
-
-        self.fc_layers = nn.ModuleList([])
-        self.fc_layers.append(nn.Linear(self.hidden_dim, self.global_params.fc_layers[0]))
-        for i, fc_layer in enumerate(self.global_params.fc_layers[1:-1]):
-            self.fc_layers.append(nn.Linear(self.global_params.fc_layers[i-1], fc_layer))
-            self.fc_layers.append(nn.ReLU())
-
-        self.fc_layers.append(nn.Linear(self.global_params.fc_layers[-2], self.global_params.fc_layers[-1]))
-
-
-
-    def extract_features(self, x):
-        #Apply conv
-        bs, ts, c, h, w = x.shape
-        
-        processed_frames = []
-        for i in range(ts):
-            out = x[:, i]
-            for conv_layer in self.conv_first_layers:
-                out = conv_layer(out)
-
-            for conv_block in self.conv_blocks:
-                out = conv_block(out)
-
-            out = self.pooling_layer(out)
-            out = self.flatten(out)
-
-            processed_frames.append(out)
-
-        return torch.stack(processed_frames)
-
-
-    def forward(self, x):
-        out = self.extract_features(x)
-        out, _ = self.lstm(out)
-        out = out.permute(1, 0, 2)
-        
-        out = out[:, -1]
-        out = self.dropout(out)
-
-        for fc_layer in self.fc_layers:
-            out = fc_layer(out)
-
-        return out
-
-    #bad, DON'T DO THIS 
-    def to(self, dev):
-        super().to(dev)
-        self.hidden_state = self.hidden_state.to(dev)
-        self.cell_state = self.cell_state.to(dev)
-    
-    #todo: batch dimension
-    def zero_hidden(self):
-        self.hidden_state = torch.zeros(self.lstm_num_layers, 1, self.hidden_dim, device=self.hidden_state.device)
-        self.cell_state = torch.zeros(self.lstm_num_layers, 1, self.hidden_dim, device=self.cell_state.device)
-
 
 
 class NvidiaModel(nn.Module):
@@ -194,24 +92,18 @@ class NvidiaModel(nn.Module):
             nn.BatchNorm2d(3),
             
             nn.Conv2d(3, 24, 5, 2),
-            # nn.BatchNorm2d(24),
             nn.ELU(),
-            # nn.MaxPool2d(2, 2),
 
             nn.Conv2d(24, 36, 5, 2),
-            # nn.BatchNorm2d(36),
             nn.ELU(),
 
             nn.Conv2d(36, 48, 5, 2),
-            # nn.BatchNorm2d(48),
             nn.ELU(),
 
             nn.Conv2d(48, 64, 3, 1),
-            # nn.BatchNorm2d(64),
             nn.ELU(),
 
             nn.Conv2d(64, 64, 3, 1),
-            # nn.BatchNorm2d(128),
             nn.ELU(),
 
             nn.AvgPool2d(2),
@@ -222,7 +114,7 @@ class NvidiaModel(nn.Module):
         out = self.cnn(torch.zeros(1, 3, h, w))
         self.cnn_shape_out = functools.reduce(operator.mul, list(out.shape))
         
-        # self.dropout = nn.Dropout(0.5)
+        self.dropout = nn.Dropout(0.0)
 
         self.linear = nn.Sequential(
             nn.Linear(self.cnn_shape_out, 100),
@@ -236,36 +128,13 @@ class NvidiaModel(nn.Module):
 
     def forward(self, X):
         out = self.cnn(X)
-        # out = self.dropout(out)
+        out = self.dropout(out)
         out = self.linear(out)
         return out
 
 
-def load_nvidia_model(model: nn.Module=None, path: str="model_state_dict.pt"):
-    if model is None:
-        model = NvidiaModel()
-    model.load_state_dict(torch.load(path))
-    model.eval()
-    return model
-
-
 def save_model(model: nn.Module, path: str):
     torch.save(model.state_dict(), path)
-
-
-def get_nvidia_model_sgd(dev: torch.device = torch.device("cpu")):
-    model = NvidiaModel()
-    model.to(dev)
-    #parameters found by random search using ray tune.
-    opt = torch.optim.SGD(model.parameters(), lr=.023508264995070294, momentum=0.4785200241865478)
-    return model, opt
-
-def get_nvidia_model_sgd_sched(dev: torch.device = torch.device("cpu")):
-    model, opt = get_nvidia_model_sgd(dev)
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(opt, [10, 20], 0.1) #default found by empirical exp. (based on 30 epochs fit)
-    return model, opt, scheduler
-
-
 
 
 #Basic architecture for testing the skeleton of the training script
@@ -308,10 +177,9 @@ class MNISTModel(nn.Module):
 class AugmentedNvidiaModel(nn.Module):
     def __init__(self, img_size: list[int], blocks_args: list[BlockArgs], linear_args: list[tuple[int, int]]):
         super(AugmentedNvidiaModel, self).__init__()
-        self.cnn = nn.ModuleList([])
 
         #Nvidia basic as starting model.
-        self.cnn.append(nn.Sequential(
+        self.cnn = nn.Sequential(
             nn.BatchNorm2d(3),
             
             nn.Conv2d(3, 24, 5, 2, bias=False),
@@ -333,20 +201,9 @@ class AugmentedNvidiaModel(nn.Module):
             nn.Conv2d(64, 64, 3, 1, bias=False),
             nn.BatchNorm2d(64),
             nn.ELU(),
-            )
-        )
 
-        if blocks_args is not None:
-            for block_args in blocks_args:
-                self.cnn.append(ConvBlock(block_args))
-                if block_args.num_repeat > 1:  # modify block_args to keep same output size
-                    block_args = block_args._replace(in_channels=block_args.out_channels, stride=1)
-                for _ in range(block_args.num_repeat - 1):
-                    self.cnn.append(ConvBlock(block_args))
-        
-        # nn.AdaptiveAvgPool2d(1),
-        self.cnn.append(nn.AvgPool2d(2, stride=2))
-        self.cnn.append(nn.Flatten(1))
+            nn.Flatten(1)
+        )   
         
         h, w = img_size
         out = self.extract_features(torch.zeros(1, 3, h, w))
@@ -354,30 +211,19 @@ class AugmentedNvidiaModel(nn.Module):
         
         # self.dropout = nn.Dropout(0.5)
 
-        def linear_elu(in_features, out_features):
-            return nn.Sequential(nn.Linear(in_features, out_features), nn.ELU())
-
-        self.linear = nn.ModuleList([])
-        self.linear.append(linear_elu(self.cnn_shape_out, linear_args[0]))
-        for i in range(len(linear_args[:-2])):
-            self.linear.append(linear_elu(linear_args[i], linear_args[i+1]))
-        self.linear.append(nn.Linear(linear_args[-2], linear_args[-1]))
-
-    def extract_features(self, X: torch.Tensor) -> torch.Tensor:
-        out = X
-        for cnn in self.cnn:
-            out = cnn(out)
-        return out
-    
-    def evaluate_features(self, X: torch.Tensor) -> torch.Tensor:
-        out = X
-        for linear in self.linear:
-            out = linear(out)
-        return out
+        self.linear = nn.Sequential(
+            nn.Linear(self.cnn_shape_out, 100),
+            nn.ELU(), 
+            nn.Linear(100, 50),
+            nn.ELU(),
+            nn.Linear(50, 10),
+            nn.ELU(), 
+            nn.Linear(10, 2),
+        )
 
     def forward(self, X: torch.Tensor) -> torch.Tensor:
-        out = self.extract_features(X)
+        out = self.cnn(X)
 
         # out = self.dropout(out)
-        out = self.evaluate_features(out)
+        out = self.linear(out)
         return out
