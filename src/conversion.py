@@ -33,7 +33,7 @@ from omegaconf import DictConfig, OmegaConf
 
 #If normalize or crop (or both) are specified, they are applied at the end of every other transformation
 
-@hydra.main(config_path="config", config_name="windows_nvidia_setup.yaml")
+@hydra.main(config_path="config", config_name="setup.yaml")
 def do_conversion(cfg: DictConfig):
     args = cfg["conversion"]
     HEIGHT = 874 
