@@ -28,7 +28,7 @@ class ConsecutiveFramesDataset(Dataset):
     
     def __getitem__(self, idx):
         frames = self.frames[idx : idx + (self.consecutive_frames * self.skips) : self.skips]
-        angles = self.angles[idx : idx + (self.consecutive_frames * self.skips) : self.skips].view(-1)
+        angles = self.angles[idx : idx + (self.consecutive_frames * self.skips) : self.skips].reshape(-1)
         
         #TODO add the transformation to angles too, if the frame is flipped.
         if self.transform is not None:
@@ -37,7 +37,7 @@ class ConsecutiveFramesDataset(Dataset):
         
         
     def __len__(self):
-        return self.frames.shape[0] - (self.consecutive_frames * self.skips)
+        return self.frames.shape[0] - (self.consecutive_frames * self.skips) + 1
 
 
 def get_consecutive_frames_ds(video_path: str, angles_path: str, consecutive_frames: int = 3, skips:int = 2, transform: T.Compose = None) -> ConsecutiveFramesDataset:
