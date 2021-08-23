@@ -41,16 +41,9 @@ def setup_videos(video_paths: list[str], output_paths: list[str], angles_paths: 
         selected_frames = np.reshape(np.loadtxt(selected_frames_path, dtype=np.int32), (-1, 2))
         for i in range(selected_frames.shape[0]):
             k, j = selected_frames[i]
-            angles_without_nan = np.invert(np.isnan(angles[k:j, 0]))
-            #Uno dei codici più brutti che io abbia mai scritto... Ma almeno funziona temporaneamente
-            if frames[k:j].shape[0] == 1200:
-                torch.save(frames[0 : 600], os.path.join(output_path, "0" + ".pt"))
-                np.savetxt(os.path.join(output_path, "0" + ".txt"), angles[0 : 600])
-                torch.save(frames[600 : 1200], os.path.join(output_path, "1" + ".pt"))
-                np.savetxt(os.path.join(output_path, "1" + ".txt"), angles[600 : 1200])
-            else:
-                torch.save(frames[k : j][angles_without_nan], os.path.join(output_path, str(i) + ".pt"))
-                np.savetxt(os.path.join(output_path, str(i) + ".txt"), angles[k:j][angles_without_nan])
+            angles_without_nan = np.invert(np.isnan(angles[k:j, 0])) 
+            torch.save(frames[k : j][angles_without_nan], os.path.join(output_path, str(i) + ".pt"))
+            np.savetxt(os.path.join(output_path, str(i) + ".txt"), angles[k:j][angles_without_nan])
 
 
 
