@@ -10,3 +10,13 @@ Overfit the model.
 Regularize the model.
 
 Hyperparameters search with ray.
+
+
+URGENT TODO:
+Implement activation map.
+Saliency map.
+Gradient flow (with register_backward_hook of the gradient).
+Visualize cnn filters.
+Automatize training process of models with different parameters.
+Config all with Hydra.
+Clean the code.
