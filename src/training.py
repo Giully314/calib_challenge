@@ -200,6 +200,14 @@ class History:
         return "TODO History str" 
 
 
+class ModelVisualization:
+    """
+    Visualize activation map, filters, gradient, saliency map ecc.
+    """
+    pass
+
+
+
 
 def loss_batch(model: nn.Module, loss_func: nn.Module, xb: torch.Tensor, yb: torch.Tensor, opt: torch.optim = None):
     y_pred = model(xb)
@@ -259,8 +267,8 @@ def fit(epochs: int, history: History, train_dls: list[DataLoader], valid_dls: l
         total_time += time_elapsed
 
         if verbose:
-            info += f'Epoch complete in {(time_elapsed // 60):.0f}m {(time_elapsed % 60):.0f}s\n'
-            print(info)
+            info += f"Epoch complete in {(time_elapsed // 60):.0f}m {(time_elapsed % 60):.0f}s {((time_elapsed % 1) * 1000):.0f}ms\n"
+            print(info) 
 
     history["total_time"] = total_time
 
