@@ -13,7 +13,7 @@ from omegaconf import DictConfig, OmegaConf
 
 #TODO add verbose mode with timing and ecc...
 
-@hydra.main(config_path="config", config_name="nvidia_training.yaml")
+@hydra.main(config_path="config", config_name="training_params.yaml")
 def main(cfg: DictConfig):
     args = cfg["train"]
 
@@ -27,6 +27,7 @@ def main(cfg: DictConfig):
         #torch.use_deterministic_algorithms(True)
 
     dev = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    print(f"DEVICE {dev}")
     img_size = tuple(args.frame_size)
     height, width = img_size
 
@@ -50,7 +51,7 @@ def main(cfg: DictConfig):
     consecutive_frames = args.consecutive_frames
     skips = args.skips
     
-    trf_crop = CropVideo(int(width * 0.2), int(width - width * 0.2), int(height *0.45), int(height - height * 0.2))
+    trf_crop = CropVideo(int(width * 0.3), int(width - width * 0.3), int(height *0.45), int(height - height * 0.25))
     
     img_size = (trf_crop.y2 - trf_crop.y1, trf_crop.x2 - trf_crop.x1)
 
@@ -93,8 +94,11 @@ def main(cfg: DictConfig):
     model = CalibModel(img_size, consecutive_frames)
     model.to(dev)
     pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    
+    #TODO add these informations to the History object and save on the file.
     print(f"CNN SHAPE OUT: {model.cnn_shape_out}")
     print(f"Number of parameters {pytorch_total_params}")
+    
     #TODO add support for passing other parameters to the optimizer
     if args.opt == "adam":
         opt = torch.optim.Adam(model.parameters(), lr=args.lr)
@@ -109,6 +113,10 @@ def main(cfg: DictConfig):
     epochs = args.epochs
     
     trn.fit(epochs, history, train_dls, valid_dl, dev, verbose=verbose)
+
+    #visualize saliency map, cnn filters, activation map, gradient flow, ecc.
+    if args.visualize_network:
+        pass
 
     if args.save_history:
         history.save_training_info()
