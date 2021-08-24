@@ -204,8 +204,23 @@ class ModelVisualization:
     """
     Visualize activation map, filters, gradient, saliency map ecc.
     """
-    pass
+    def __init__(self, model: nn.Module):
+        """
+        The model should contains an attribute called cnn of type nn.Sequential(OrderedDict())
+        """
+        self.model = model
+        self.activation = ut.ActivationMapHook()
 
+
+    def register_activation_map(self, layer_name: str) -> None:
+        """
+        Works only for cnn.
+        """
+        i = ut.get_index_by_name(self.model.cnn, layer_name)
+        self.model.cnn[i].register_forward_hook(self.activation.get_activation(layer_name))
+
+
+    
 
 
 
