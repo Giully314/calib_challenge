@@ -193,16 +193,18 @@ class ActivationMapHook:
     activation: dict = field(default_factory=dict)
 
     def get_activation(self, name):
+        if name not in self.activation.keys():
+            self.activation[name] = []
         def hook(model, input, output):
-            self.activation[name] = output.detach()
+            self.activation[name].append(output.detach())
         return hook
 
 
     def __getitem__(self, idx):
         return self.activation[idx]
     
-    def __setitem__(self, idx, new_value):
-        self.activation[idx] = new_value
+    # def __setitem__(self, idx, new_value):
+    #     self.activation[idx] = new_value
 
 
 #get the index of a layer in Sequential by name
