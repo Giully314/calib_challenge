@@ -9,8 +9,6 @@ import collections
 from utils import (
     conv1x1, 
     conv2d,
-    round_filters,
-    round_repeats,
 )
 
 
@@ -57,7 +55,7 @@ class ConvBlock(nn.Module):
         self.norm2 = nn.BatchNorm2d(self.block_args.out_channels)
         
         
-        self.activation_fun = nn.ELU(inplace=True)
+        self.activation_fun = nn.ELU()
         self.proj = None 
         if self.block_args.stride != 1 or (self.block_args.in_channels != self.block_args.out_channels):
             self.proj = nn.Sequential(
@@ -174,68 +172,59 @@ class MNISTModel(nn.Module):
 
 
 
-class AugmentedNvidiaModel(nn.Module):
+class CalibModel(nn.Module):
     """
     Model based on the nvidia architecture model for self driving. 
     I added temporal dependencies with lstm.
     """
     def __init__(self, img_size: list[int], consecutive_frames: int):
-        super(AugmentedNvidiaModel, self).__init__()
+        super(CalibModel, self).__init__()
+
+        # block_arg1 = BlockArgs(1, 64, 128, 3, 2)
+        # block_arg2 = BlockArgs(1, 128, 128, 3, 1)
 
         #Nvidia basic as starting model.
-        self.cnn = nn.Sequential(
-            nn.BatchNorm2d(3),
+        self.cnn = nn.Sequential(collections.OrderedDict([
+            ("bn0", nn.BatchNorm2d(3)),
             
-            nn.Conv2d(3, 24, 5, 2, bias=False),
-            nn.BatchNorm2d(24),
-            nn.ELU(),
-            nn.MaxPool2d(2, stride=1),
+            ("conv1", nn.Conv2d(3, 24, 5, 2, bias=True)),
+            ("bn1", nn.BatchNorm2d(24)),
+            ("elu1", nn.ELU()),
+            # nn.MaxPool2d(3, stride=1),
 
-            nn.Conv2d(24, 36, 5, 2, bias=False),
-            nn.BatchNorm2d(36),
-            nn.ELU(),
+            ("conv2", nn.Conv2d(24, 36, 5, 2, bias=True)),
+            ("bn2", nn.BatchNorm2d(36)),
+            ("elu2", nn.ELU()),
 
-            nn.Conv2d(36, 48, 5, 2, bias=False),
-            nn.BatchNorm2d(48),
-            nn.ELU(),
+            ("conv3", nn.Conv2d(36, 48, 5, 2, bias=True)),
+            ("bn3" ,nn.BatchNorm2d(48)),
+            ("elu3", nn.ELU()),
 
-            nn.Conv2d(48, 64, 3, 1, bias=False),
-            nn.BatchNorm2d(64),
-            nn.ELU(),
+            ("conv4", nn.Conv2d(48, 64, 3, 1, bias=True)),
+            ("bn4", nn.BatchNorm2d(64)),
+            ("elu4", nn.ELU()),
 
-            nn.Conv2d(64, 64, 3, 1, bias=False),
-            nn.BatchNorm2d(64),
-            nn.ELU(),
+            ("conv5", nn.Conv2d(64, 64, 3, 1, bias=True)),
+            ("bn5", nn.BatchNorm2d(64)),
+            ("elu5", nn.ELU()),
 
-            nn.AvgPool2d(2, stride=1),
-
-            nn.Flatten(1)
-        )   
+            ("avg_pool", nn.AvgPool2d(3, stride=1)),
+            ("flatten", nn.Flatten(1))
+        ]))   
         
         h, w = img_size
         out = self.extract_features(torch.zeros(1, 1, 3, h, w))
         self.cnn_shape_out = functools.reduce(operator.mul, list(out.shape))
 
-        self.hidden_size = int(self.cnn_shape_out / 4) #temporary choose 
-        self.lstm = nn.LSTM(self.cnn_shape_out, self.hidden_size)
+        self.hidden_size = int(256) #temporary choose 
+        self.lstm = nn.LSTM(self.cnn_shape_out, self.hidden_size, num_layers=3)
 
         # self.dropout = nn.Dropout(0.5)
-
         self.linear = nn.Sequential(
             nn.Flatten(1),
-            nn.Linear(self.hidden_size * consecutive_frames, 1000),
+            nn.Linear(self.hidden_size * consecutive_frames, self.hidden_size),
             nn.ELU(),
-            nn.Linear(1000, 500),
-            nn.ELU(), 
-            nn.Linear(500, 300),
-            nn.ELU(),
-            nn.Linear(300, 100),
-            nn.ELU(),
-            nn.Linear(100, 50),
-            nn.ELU(),
-            nn.Linear(50, 10),
-            nn.ELU(), 
-            nn.Linear(10, consecutive_frames * 2),
+            nn.Linear(self.hidden_size, consecutive_frames * 2)
         )
 
     def extract_features(self, X: torch.Tensor) -> torch.Tensor:
