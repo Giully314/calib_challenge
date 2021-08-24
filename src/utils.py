@@ -185,8 +185,7 @@ def visualize_cnn_filters(tensor, ch=0, allkernels=False, nrow=8, padding=1):
     grid = torch.utils.make_grid(tensor, nrow=nrow, normalize=True, padding=padding)
     plt.figure( figsize=(nrow,rows) )
     plt.imshow(grid.numpy().transpose((1, 2, 0)))
-
-
+    
 
 #class for register activation map
 @dataclass 
@@ -204,3 +203,8 @@ class ActivationMapHook:
     
     def __setitem__(self, idx, new_value):
         self.activation[idx] = new_value
+
+
+#get the index of a layer in Sequential by name
+def get_index_by_name(sequential: torch.nn.Sequential, name: str):
+    return list(dict(sequential.named_children()).keys()).index(name)
