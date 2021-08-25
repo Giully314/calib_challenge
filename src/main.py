@@ -13,9 +13,10 @@ from omegaconf import DictConfig, OmegaConf
 
 #TODO add verbose mode with timing and ecc...
 
-@hydra.main(config_path="config", config_name="training_params.yaml")
+@hydra.main(config_path="config")
 def main(cfg: DictConfig):
-    args = cfg["train"]
+    # print(print(OmegaConf.to_yaml(cfg)))
+    args = cfg["training"]["train"]
 
     if args.deterministic:
         seed = 1729
@@ -58,38 +59,22 @@ def main(cfg: DictConfig):
     train_dss = [get_consecutive_frames_ds(video_path, angles_path, consecutive_frames, skips, trf_crop) 
                 for video_path, angles_path in zip(train_videos, train_angles)]
     
-    # ds = train_dss[0]
-    # ds.frames = ds.frames[0:256]
-    # ds.angles = ds.angles[0:256]
+    if args.range is not None:
+        start = args.range[0]
+        end = args.range[1]
+        for ds in train_dss:
+            ds.frames = ds.frames[start:end]
+            ds.angles = ds.angles[start:end]
 
     train_dls = [
         DataLoader(train_ds, batch_size,
         num_workers=train_workers, shuffle=shuffle, pin_memory=True, persistent_workers=persistent_workers) 
         for train_ds in train_dss]
 
-    
-
-
-    # if args.dataset == "FrameDataset":
-    #     train_datasets = [get_frame_ds(frame_dir) for frame_dir in train_dirs]
-    #     valid_datasets = [get_frame_ds(frame_dir) for frame_dir in valid_dirs]
-    # elif args.dataset == "RangeFrameDataset":
-    #     train_datasets = [get_range_frame_ds(frame_dir) for frame_dir in train_dirs]
-    #     valid_datasets = [get_range_frame_ds(frame_dir) for frame_dir in valid_dirs]
-    # elif args.dataset == "ConsecutiveFrameDataset":
-    #     train_datasets = [get_consecutive_frames_ds(frame_dir) for frame_dir in train_dirs]
-    #     valid_datasets = [get_frame_ds(frame_dir) for frame_dir in valid_dirs]
 
     valid_dl = None
     if args.valid_model:
-        valid_dir = os.path.join(data_dir, args.valid_data)
-        # valid_dirs = [os.path.join(valid_dir, str(video)) for video in videos]
-        # valid_angles_files = [os.path.join(vd, "angles.txt") for vd in valid_dirs]
-        # valid_datasets = [get_frame_ds(frame_dir) for frame_dir in valid_dirs]
-        # valid_dl = [DataLoader(valid_ds, batch_size, 
-        #     num_workers=valid_workers, shuffle=False, pin_memory=True, persistent_workers=persistent_workers) 
-        #     for valid_ds in valid_datasets]
-    
+        pass
 
     model = CalibModel(img_size, consecutive_frames)
     model.to(dev)
@@ -109,14 +94,26 @@ def main(cfg: DictConfig):
 
     loss = nn.MSELoss()
 
-    history = trn.History(args.history_out, videos, args.valid_video, args.test_video, model, opt, loss, None, batch_size)
+    history = trn.History(args.training_info_dir, videos, args.valid_video, model, opt, loss, None, batch_size)
     epochs = args.epochs
     
     trn.fit(epochs, history, train_dls, valid_dl, dev, verbose=verbose)
 
-    #visualize saliency map, cnn filters, activation map, gradient flow, ecc.
-    if args.visualize_network:
-        pass
+    
+    if args.activation_maps is not None:
+        visualization = trn.ModelVisualization(args.training_info_dir, model, dev)
+        for layer_name in args.activation_maps:
+            visualization.register_activation_map(layer_name)
+
+        #NOTE: TECHNICALLY THE VISUALIZATION OF THE ACTIVATION MAPS SHOULD BE DONE ON VALID/TEST SET. FOR NOW I'M GOING TO DO IT 
+        # ON THE TRAINING SET.
+        ds = train_dss[0]
+        ds.frames = ds.frames[0:consecutive_frames * skips]
+        ds.angles = ds.angles[0:consecutive_frames * skips]
+        dl = DataLoader(ds, batch_size=1)
+        visualization.trigger_activation_maps(dl)
+        visualization.save_activation_maps()
+
 
     if args.save_history:
         history.save_training_info()
@@ -124,8 +121,7 @@ def main(cfg: DictConfig):
     
     if args.test_model:
         #load test data here
-        test_dl = None
-        history.test_model(test_dl, dev)   
+        pass
     
     
     if args.save_model:
