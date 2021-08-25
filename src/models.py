@@ -216,13 +216,14 @@ class CalibModel(nn.Module):
         out = self.extract_features(torch.zeros(1, 1, 3, h, w))
         self.cnn_shape_out = functools.reduce(operator.mul, list(out.shape))
 
+        #TODO BEFORE USE LSTM, LEARN WHAT IT IS, IDIOT.
         self.hidden_size = int(256) #temporary choose 
         self.lstm = nn.LSTM(self.cnn_shape_out, self.hidden_size, num_layers=3)
 
         # self.dropout = nn.Dropout(0.5)
         self.linear = nn.Sequential(
             nn.Flatten(1),
-            nn.Linear(self.hidden_size * consecutive_frames, self.hidden_size),
+            nn.Linear(self.hidden_size * consecutive_frames, self.hidden_size), #regulate this layer
             nn.ELU(),
             nn.Linear(self.hidden_size, consecutive_frames * 2)
         )
