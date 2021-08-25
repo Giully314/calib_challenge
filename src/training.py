@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 import torch
 from torch.utils.data import DataLoader
 from torch import nn
@@ -12,6 +13,7 @@ from matplotlib import pyplot as plt
 
 #TODO Add test evaluation values. (Inherent of what the model needs to do.)
 
+@dataclass
 class History:
     """
     Class that stores information about: model, loss, optimizer, scheduler, batch_size, 
@@ -20,20 +22,32 @@ class History:
     Test informations with the result and the respectives graphs.
     """
 
-    def __init__(self, dir: str, train_videos: list[str], valid_video: str, test_video: str, 
-                    model: nn.Module, opt: torch.optim, loss_func: nn.Module, 
-                    scheduler: torch.optim.lr_scheduler, batch_size: int):
-        self.dir = dir
-        self.train_videos = train_videos
-        self.valid_video = valid_video
-        self.test_video = test_video    
-        self.model = model
-        self.opt = opt
-        self.loss_func = loss_func
-        self.batch_size = batch_size
-        self.scheduler = scheduler
-        self.history = {"train_loss": [], "valid_loss": [], "total_time": 0.0}
+    dir: str
+    train_videos: list[str]
+    valid_video: str
+    model: torch.nn.Module
+    opt: torch.optim
+    loss_func: nn.Module
+    scheduler: torch.optim.lr_scheduler
+    batch_size: int
+    history: dict = field(init=False)
 
+    # def __init__(self, dir: str, train_videos: list[str], valid_video: str, 
+    #                 model: nn.Module, opt: torch.optim, loss_func: nn.Module, 
+    #                 scheduler: torch.optim.lr_scheduler, batch_size: int):
+    #     self.dir = os.path.join(dir, "history")
+    #     self.train_videos = train_videos
+    #     self.valid_video = valid_video    
+    #     self.model = model
+    #     self.opt = opt
+    #     self.loss_func = loss_func
+    #     self.batch_size = batch_size
+    #     self.scheduler = scheduler
+    #     self.history = {"train_loss": [], "valid_loss": [], "total_time": 0.0}
+
+    def __post_init__(self):
+        self.history = {"train_loss": [], "valid_loss": [], "total_time": 0.0}
+        self.dir = os.path.join(self.dir, "history")
         ut.create_dir(self.dir)
 
     def save_training_info(self):
@@ -78,7 +92,7 @@ class History:
         train_loss = self.history["train_loss"]
         epochs = [i for i in range(len(train_loss))]
 
-        fig = plt.figure(figsize=(18, 16), dpi=80)
+        fig = plt.figure(figsize=(18, 16), dpi=160)
         ax = fig.add_subplot()
         ax.plot(epochs, train_loss, "b-", label="TrainLoss")
         ax.legend(loc="center right", fontsize=12) 
@@ -90,12 +104,11 @@ class History:
     
     
     def save_training_valid_curve(self):
-        #TODO create a new figure and then plot.
         train_loss = self.history["train_loss"]
         val_loss = self.history["valid_loss"]
         epochs = [i for i in range(len(train_loss))]
 
-        fig = plt.figure(figsize=(16, 14), dpi=80)
+        fig = plt.figure(figsize=(18, 16), dpi=160)
         ax = fig.add_subplot()
         ax.plot(epochs, train_loss, "b-", label="TrainLoss")
         ax.plot(epochs, val_loss, "g-", label="ValidLoss")
@@ -106,80 +119,6 @@ class History:
         h_file = os.path.join(self.dir, "training_valid_curve.png")
         plt.savefig(h_file, transparent=False)
 
-
-    #TODO refactor and check the test section. It depends on what and how the model output.
-    def test_model(self, test_dl: DataLoader, dev: torch.device) -> str:
-        output_dir = os.path.join(self.dir, "results") 
-        output_result = os.path.join(output_dir, "result.txt")
-        output_inference = os.path.join(output_dir, "inference.txt")
-        output_test = os.path.join(output_dir, "gt.txt")
-
-        ut.create_dir(output_dir) 
-        #TODO compute only 1 time the test set.
-
-        ut.inference_and_save(self.model, test_dl, output_inference, dev) 
-      
-        with open(output_test, "w") as out_test, open(output_inference, "w") as out_inf:
-            for x, y in test_dl:
-                y_pred = self.model(x)
-                for i in range(y.shape[0]):
-                    out_test.write(f"{y[i, 0].item()} {y[i, 1].item()}\n")
-                    
-
-        mses = []
-        zero_mses = []
-        for output_test, output_inference in zip(output_tests, output_inferences):
-            mse, zero_mse = ut.eval_angles(output_test, output_inference)
-            mses.append(mse)
-            zero_mses.append(zero_mse)
-
-        percent_err_vs_all_zeros = 100*np.mean(mses)/np.mean(zero_mses)
-
-        result_string = f'YOUR ERROR SCORE IS {percent_err_vs_all_zeros:.2f}% (lower is better)'
-        
-        with open(output_result, "w") as f:
-            f.write(result_string)
-
-        self._save_test_png()
-
-        return result_string
-
-
-    def _save_test_png(self):
-        results_dir = os.path.join(self.dir, "results") 
-        inferred_angles_files = [os.path.join(results_dir, str(video) + ".txt") for video in self.train_videos]
-        gt_angles_files = [os.path.join(results_dir, str(video) + "_test.txt") for video in self.train_videos]
-        result = os.path.join(results_dir, "result.txt")
-
-        inferred_angles = [np.loadtxt(inferred_angles_file) for inferred_angles_file in inferred_angles_files]
-        gt_angles = [np.loadtxt(gt_angles_file) for gt_angles_file in gt_angles_files]
-
-        with open(result, "r") as f:
-            result_string = f.readline()
-
-        for video, pred_angles, true_angles in zip(self.train_videos, inferred_angles, gt_angles):
-            num_frames = len(pred_angles) #that's equal to len(gt_angles)
-            frames = [i for i in range(num_frames)]
-            fig, (ax1, ax2) = plt.subplots(2, figsize=(16, 14), dpi=80)
-
-            fig.suptitle(result_string, fontsize=14, fontweight='bold')
-
-            ax1.plot(frames, pred_angles[:, 0], "b-", label="Inferred pitch")
-            ax1.plot(frames, true_angles[:, 0], "g-", label="Gt pitch")
-            ax1.legend(loc="center right", fontsize=12) 
-            ax1.set_xlabel("Frame", fontsize=16)
-            ax1.set_ylabel("Angles (rad)", fontsize=16)
-            ax1.axis([0, num_frames+1, 0, max(max(pred_angles[:, 0]), max(true_angles[:, 0])) + 0.01])
-
-            ax2.plot(frames, pred_angles[:, 1], "b-", label="Inferred yaw")
-            ax2.plot(frames, true_angles[:, 1], "g-", label="Gt yaw")
-            ax2.legend(loc="center right", fontsize=12) 
-            ax2.set_xlabel("Frame", fontsize=16)
-            ax2.set_ylabel("Angles (rad)", fontsize=16)
-            ax2.axis([0, num_frames+1, 0, max(max(pred_angles[:, 1]), max(true_angles[:, 1])) + 0.01])
-
-            h_file = os.path.join(results_dir, str(video) + ".png")
-            plt.savefig(h_file, transparent=False)
 
     def save_model(self) -> None:
         path = os.path.join(self.dir, "model_state_dict.pt")
@@ -200,16 +139,21 @@ class History:
         return "TODO History str" 
 
 
+@dataclass
 class ModelVisualization:
     """
     Visualize activation map, filters, gradient, saliency map ecc.
+    The model should contains an attribute called cnn of type nn.Sequential(OrderedDict())    
     """
-    def __init__(self, model: nn.Module):
-        """
-        The model should contains an attribute called cnn of type nn.Sequential(OrderedDict())
-        """
-        self.model = model
-        self.activation = ut.ActivationMapHook()
+    dir: str
+    model: nn.Module
+    dev: torch.device
+    activation_map_hook: ut.ActivationMapHook = field(init=False)
+
+    def __post_init__(self):
+        self.activation_map_hook = ut.ActivationMapHook()
+        self.dir = os.path.join(self.dir, "model_visualization")
+        ut.create_dir(self.dir)
 
 
     def register_activation_map(self, layer_name: str) -> None:
@@ -217,14 +161,39 @@ class ModelVisualization:
         Works only for cnn.
         """
         i = ut.get_index_by_name(self.model.cnn, layer_name)
-        self.model.cnn[i].register_forward_hook(self.activation.get_activation(layer_name))
+        self.model.cnn[i].register_forward_hook(self.activation_map_hook.get_activation(layer_name))
+
+    def save_activation_maps(self):
+        """
+        Save all the activation maps. A figure contains 2 activation maps.
+        """
+        for layer_name, activations in self.activation_map_hook.activation.items():
+            d = os.path.join(self.dir, "activation_" + str(layer_name))
+            ut.create_dir(d)
+            n_cols = 2
+            for i in range(len(activations) // n_cols):
+                file = os.path.join(d, str(i) + ".png")
+                fig, ax_array = plt.subplots(1, n_cols, figsize=(20, 18), dpi=160)
+                print(f"SHAPE ACT: {activations[i].shape}")
+                ax_array[0].imshow(activations[i].cpu())
+                ax_array[1].imshow(activations[i+1].cpu().squeeze())
+                plt.savefig(file)
+
+    def trigger_activation_maps(self, dl: DataLoader):  
+        """
+        Trigger the registered activation maps.
+        DATALOADER SHOULD HAVE BATCH_SIZE = 1.
+        """
+        self.model.eval()
+        for x, y in dl:
+            self.model(x.to(self.dev))
 
 
-    def save_activation_maps(self, dir):
-        pass
-    
 
-    
+
+class TestModel:
+    pass
+
 
 
 
