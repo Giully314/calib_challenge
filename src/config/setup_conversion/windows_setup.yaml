@@ -1,0 +1,8 @@
+conversion:
+  input: C:\Users\Giully\Programmazione\calib_challenge\src\videos\labeled
+  output: C:\Users\Giully\Programmazione\calib_challenge\src\data3
+  selected_frames: C:\Users\Giully\Programmazione\calib_challenge\src\config\selected_frames
+  videos: [0, 1, 2, 3, 4]
+  height_divisor: 3
+  width_divisor: 3
+  yuv: true
