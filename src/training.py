@@ -220,6 +220,10 @@ class ModelVisualization:
         self.model.cnn[i].register_forward_hook(self.activation.get_activation(layer_name))
 
 
+    def save_activation_maps(self, dir):
+        pass
+    
+
     
 
 
