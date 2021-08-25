@@ -11,12 +11,13 @@ Regularize the model.
 
 Hyperparameters search with ray.
 
+Before the real training, check dropout from DeepLearning and see the problems of combining dropout with Batch normalization.
 
 URGENT TODO:
 Implement activation map.
 Saliency map.
 Gradient flow (with register_backward_hook of the gradient).
 Visualize cnn filters.
-Automatize training process of models with different parameters.
+Automatize training process of models with different parameters (easy to do with Hydra multirun).
 Config all with Hydra.
 Clean the code.
