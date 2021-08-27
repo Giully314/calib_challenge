@@ -125,8 +125,7 @@ class NvidiaModel(nn.Module):
         return out
 
 
-def save_model(model: nn.Module, path: str):
-    torch.save(model.state_dict(), path)
+
 
 
 #Basic architecture for testing the skeleton of the training script
