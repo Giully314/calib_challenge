@@ -210,3 +210,7 @@ class ActivationMapHook:
 #get the index of a layer in Sequential by name
 def get_index_by_name(sequential: torch.nn.Sequential, name: str):
     return list(dict(sequential.named_children()).keys()).index(name)
+
+
+def save_model(model: nn.Module, path: str):
+    torch.save(model.state_dict(), path)
