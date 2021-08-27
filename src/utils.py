@@ -143,7 +143,7 @@ class Timer:
 
     def __str__(self):
         total_time = self.e - self.s 
-        return f"{(total_time//60):.0f}m {(total_time % 60):.0f}s"
+        return f"{(total_time//60):.0f}m {(total_time % 60):.0f}s {((total_time % 1) * 1000):.0f}ms"
     
 
 
