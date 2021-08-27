@@ -148,6 +148,7 @@ class ModelVisualization:
     dir: str
     model: nn.Module
     dev: torch.device
+    verbose: bool = False
     activation_map_hook: ut.ActivationMapHook = field(init=False)
 
     def __post_init__(self):
@@ -160,35 +161,54 @@ class ModelVisualization:
         """
         Works only for cnn.
         """
+        if self.verbose:
+            print(f"Register activation map for {layer_name}")
         i = ut.get_index_by_name(self.model.cnn, layer_name)
         self.model.cnn[i].register_forward_hook(self.activation_map_hook.get_activation(layer_name))
 
     def save_activation_maps(self):
         """
-        Save all the activation maps. A figure contains 2 activation maps.
+        Save all the activation maps. I only consider the first 3 conv layer. I fix the number of columns in the figure (3).
         """
         for layer_name, activations in self.activation_map_hook.activation.items():
             d = os.path.join(self.dir, "activation_" + str(layer_name))
             ut.create_dir(d)
-            n_cols = 2
-            for i in range(len(activations) // n_cols):
+            n_cols = 3
+            n_rows = activations[0].shape[1] // n_cols
+            
+            if self.verbose:
+                print(f"Save activation map for {layer_name}")
+            for i in range(len(activations)):
                 file = os.path.join(d, str(i) + ".png")
-                fig, ax_array = plt.subplots(1, n_cols, figsize=(20, 18), dpi=160)
-                print(f"SHAPE ACT: {activations[i].shape}")
-                ax_array[0].imshow(activations[i].cpu())
-                ax_array[1].imshow(activations[i+1].cpu().squeeze())
+
+                if self.verbose:
+                    print(f"Save file {file}")
+
+                act = activations[i].squeeze().cpu()
+                fig, ax_array = plt.subplots(n_rows, n_cols, figsize=(20, 18), dpi=160)
+                for i in range(n_rows):
+                    for j in range(n_cols):
+                        ax_array[i, j].imshow(act[i * n_cols + j], cmap='gray')
                 plt.savefig(file)
+                plt.close(fig)
+
+            if self.verbose:
+                print()
 
     def trigger_activation_maps(self, dl: DataLoader):  
         """
         Trigger the registered activation maps.
         DATALOADER SHOULD HAVE BATCH_SIZE = 1.
         """
+        if self.verbose:
+            print("Trigger activation maps")
         self.model.eval()
         for x, y in dl:
             self.model(x.to(self.dev))
 
 
+    def register_gradient_flow(self):
+        pass
 
 
 class TestModel:
