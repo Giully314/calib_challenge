@@ -5,6 +5,8 @@ import functools
 import operator
 import collections
 
+from torch.nn.modules import linear
+
 
 from utils import (
     conv1x1, 
@@ -25,21 +27,13 @@ class RMSELoss(nn.Module):
 BlockArgs = collections.namedtuple("BlockArgs", [
             "num_repeat", "in_channels", "out_channels", "kernel_size", "stride",
 ])
-
-
-GlobalParams = collections.namedtuple("GlobalParams", [
-    "width_coeff", "depth_coeff", "image_size",
-    "conv_layers", #first layers of the conv 
-    "final_pooling_layer",
-    "num_recurrent_layers", "hidden_dim", "rec_dropout", #recurrent networks for temporal dependencies 
-    "dropout",
-    "fc_layers", #fully connected layers (tuple of ints)
-])
-
-
-GlobalParams.__new__.__defaults__ = (None,) * len(GlobalParams._fields)
 BlockArgs.__new__.__defaults__ = (None,) * len(BlockArgs._fields)
 
+
+CalibParams = collections.namedtuple("CalibParams", [
+    "img_size", "consecutive_frames", "lstm_hidden_size", "lstm_num_layers", "linear_layers"
+])
+CalibParams.__new__.__defaults__ = (None,) * len(CalibParams._fields)
 
 
 class ConvBlock(nn.Module):
@@ -177,7 +171,7 @@ class CalibModel(nn.Module):
     Model based on the nvidia architecture model for self driving. 
     I added temporal dependencies with lstm.
     """
-    def __init__(self, img_size: list[int], consecutive_frames: int):
+    def __init__(self, calib_params: CalibParams):
         super(CalibModel, self).__init__()
 
         # block_arg1 = BlockArgs(1, 64, 128, 3, 2)
@@ -187,24 +181,24 @@ class CalibModel(nn.Module):
         self.cnn = nn.Sequential(collections.OrderedDict([
             ("bn0", nn.BatchNorm2d(3)),
             
-            ("conv1", nn.Conv2d(3, 24, 5, 2, bias=True)),
+            ("conv1", nn.Conv2d(3, 24, 5, 2, bias=False)),
             ("bn1", nn.BatchNorm2d(24)),
             ("elu1", nn.ELU()),
             # nn.MaxPool2d(3, stride=1),
 
-            ("conv2", nn.Conv2d(24, 36, 5, 2, bias=True)),
+            ("conv2", nn.Conv2d(24, 36, 5, 2, bias=False)),
             ("bn2", nn.BatchNorm2d(36)),
             ("elu2", nn.ELU()),
 
-            ("conv3", nn.Conv2d(36, 48, 5, 2, bias=True)),
+            ("conv3", nn.Conv2d(36, 48, 5, 2, bias=False)),
             ("bn3" ,nn.BatchNorm2d(48)),
             ("elu3", nn.ELU()),
 
-            ("conv4", nn.Conv2d(48, 64, 3, 1, bias=True)),
+            ("conv4", nn.Conv2d(48, 64, 3, 1, bias=False)),
             ("bn4", nn.BatchNorm2d(64)),
             ("elu4", nn.ELU()),
 
-            ("conv5", nn.Conv2d(64, 64, 3, 1, bias=True)),
+            ("conv5", nn.Conv2d(64, 64, 3, 1, bias=False)),
             ("bn5", nn.BatchNorm2d(64)),
             ("elu5", nn.ELU()),
 
@@ -212,21 +206,27 @@ class CalibModel(nn.Module):
             ("flatten", nn.Flatten(1))
         ]))   
         
-        h, w = img_size
+        h, w = calib_params.img_size
         out = self.extract_features(torch.zeros(1, 1, 3, h, w))
         self.cnn_shape_out = functools.reduce(operator.mul, list(out.shape))
 
         #TODO BEFORE USE LSTM, LEARN WHAT IT IS, IDIOT.
-        self.hidden_size = int(256) #temporary choose 
-        self.lstm = nn.LSTM(self.cnn_shape_out, self.hidden_size, num_layers=3)
+        self.hidden_size = int(calib_params.lstm_hidden_size) #temporary choose 
+        self.lstm = nn.LSTM(self.cnn_shape_out, self.hidden_size, num_layers=calib_params.lstm_num_layers)
 
         # self.dropout = nn.Dropout(0.5)
-        self.linear = nn.Sequential(
-            nn.Flatten(1),
-            nn.Linear(self.hidden_size * consecutive_frames, self.hidden_size), #regulate this layer
-            nn.ELU(),
-            nn.Linear(self.hidden_size, consecutive_frames * 2)
-        )
+        consecutive_frames = calib_params.consecutive_frames
+
+        self.linear = nn.ModuleList([])
+        self.linear.append(nn.Flatten(1)) #??? it's the right way to process the output of the lstm?
+        
+        linear_layers = [self.hidden_size * consecutive_frames]  + list(calib_params.linear_layers) + [consecutive_frames * 2]
+        for i in range(len(linear_layers) - 2):
+            self.linear.append(nn.Linear(linear_layers[i], linear_layers[i + 1])) #regulate this layer
+            self.linear.append(nn.ELU())
+            
+        self.linear.append(nn.Linear(linear_layers[-2], linear_layers[-1]))
+
 
     def extract_features(self, X: torch.Tensor) -> torch.Tensor:
         """
@@ -242,11 +242,21 @@ class CalibModel(nn.Module):
         # https://discuss.pytorch.org/t/torch-stack-is-very-slow-and-cause-cuda-error/28554
         return torch.stack(out)
 
+    def process_information(self, X: torch.Tensor) -> torch.Tensor:
+        out = X
+        for layer in self.linear:
+            out = layer(out)
+        return out
+
 
     def forward(self, X: torch.Tensor) -> torch.Tensor:
         out = self.extract_features(X)
+        
         out, (hn, cn) = self.lstm(out)
+       
         # out = self.dropout(out)
         out = out.permute(1, 0, 2)
-        out = self.linear(out)
+       
+        out = self.process_information(out)
+
         return out
