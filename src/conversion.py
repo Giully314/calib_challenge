@@ -33,9 +33,9 @@ from omegaconf import DictConfig, OmegaConf
 
 #If normalize or crop (or both) are specified, they are applied at the end of every other transformation
 
-@hydra.main(config_path="config", config_name="setup.yaml")
+@hydra.main(config_path="config")
 def do_conversion(cfg: DictConfig):
-    args = cfg["conversion"]
+    args = cfg["setup_conversion"]["conversion"]
     HEIGHT = 874 
     WIDTH = 1164
     height_div = args.height_divisor
