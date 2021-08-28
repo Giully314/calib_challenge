@@ -9,30 +9,6 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 
 
-# parser = argparse.ArgumentParser()
-# parser.add_argument("--cpus", type=int, default=2, help="Number of cores to use.")
-# parser.add_argument("-i", "--input", type=str, default=os.path.join("calib_challenge", "labeled"), help="Directory with videos.")
-# parser.add_argument("-o", "--output", type=str, default="data", help="Output directory.")
-# parser.add_argument("--videos", type=int, metavar="1 2 ... ", nargs='+', help="Videos to convert.")
-# # parser.add_argument("-c", "--conversion_type", type=str, metavar="conversion type", help="Type of conversion: nvidia or temporal.")
-# parser.add_argument("-h_div", "--height_divisor", type=float, metavar="H", default=3, help="Divisor of the height.")
-# parser.add_argument("-w_div", "--width_divisor", type=float, metavar="W", default=3, help="Divisor of the width.")
-# parser.add_argument("--train_split", type=float, metavar="train_split", default=0.8, help="A number between 0 and 1 for the train split.")
-# parser.add_argument("--test_split", type=float, metavar="test_split", default=0.1, help="A number between 0 and 1 for the test split.")
-# parser.add_argument("-m", "--merge", action="store_true", help="Merge the frames in one directory.")
-# parser.add_argument("-j", "--jitter", type=float, metavar="b c s h", nargs="*", help="Specify color jitter. See pytorch doc.")
-# parser.add_argument("-t", "--translate", type=float, metavar="th tw", nargs="*", help="Specify image translation. See pytorch doc.")
-# parser.add_argument("-r", "--rotation", type=float, metavar="a1 a2", nargs="*", help="Specify image rotation. See pytorch doc.")
-# parser.add_argument("-cr", "--crop", type=int, metavar="x1 x2 y1 y2", nargs=4, default=[25, 350, 125, 231],
-#                     help="Specify image crop height.")
-
-# args = parser.parse_args()
-
-#TODO refactor all. The way the script is organized is a little bit a shit. Add more flexibility.
-
-
-#If normalize or crop (or both) are specified, they are applied at the end of every other transformation
-
 @hydra.main(config_path="config")
 def do_conversion(cfg: DictConfig):
     args = cfg["setup_conversion"]["conversion"]
@@ -45,8 +21,14 @@ def do_conversion(cfg: DictConfig):
         
     color_repr = BGRToYUV() if args.yuv else bgr_to_rgb   
     trf_resize = T.Resize((new_height, new_width), interpolation=InterpolationMode.BICUBIC)
-    basic_transform = T.Compose([color_repr, T.ToTensor(), trf_resize])
+    trf_crop = None if args.crop is None else Crop(*list(args.crop))
 
+    if trf_crop is not None:
+        basic_transform = T.Compose([color_repr, T.ToTensor(), trf_resize, trf_crop])
+    else:
+        basic_transform = T.Compose([color_repr, T.ToTensor(), trf_resize])
+
+    
     #Basic conversion
     video_names = args.videos
     data_dir = args.output
