@@ -1,8 +1,9 @@
 conversion:
   input: /home/giully/Programmazione/calib_challenge/src/videos/labeled
-  output: /home/giully/Programmazione/calib_challenge/src/data3
+  output: /home/giully/Programmazione/calib_challenge/src/data3_crop
   selected_frames: /home/giully/Programmazione/calib_challenge/src/config/selected_frames
   videos: [0, 1, 2, 3, 4]
   height_divisor: 3
   width_divisor: 3
   yuv: true 
+  crop: [130, 218, 38, 349]
