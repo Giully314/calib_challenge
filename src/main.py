@@ -86,13 +86,14 @@ def main(cfg: DictConfig):
     
 
     #TODO implement a config file for transformations. 
-    trf_crop = CropVideo(int(width * 0.3), int(width - width * 0.3), int(height *0.45), int(height - height * 0.25))
+    #trf_crop = CropVideo(int(width * 0.1), int(width - width * 0.1), int(height *0.45), int(height - height * 0.25))
+    #trf_crop = CropVideo(int(width * 0.3), int(width - width * 0.3), int(height *0.45), int(height - height * 0.25))
     
-    img_size = (trf_crop.y2 - trf_crop.y1, trf_crop.x2 - trf_crop.x1)
+    #img_size = (trf_crop.y2 - trf_crop.y1, trf_crop.x2 - trf_crop.x1)
 
     print("Loading datasets...", end=" ")
     timer.start()
-    train_dss = [get_consecutive_frames_ds(video_path, angles_path, consecutive_frames, skips, trf_crop) 
+    train_dss = [get_consecutive_frames_ds(video_path, angles_path, consecutive_frames, skips) 
                 for video_path, angles_path in zip(train_videos, train_angles)]
     timer.end()
     print(f"{timer}")
