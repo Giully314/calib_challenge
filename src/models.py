@@ -201,7 +201,7 @@ class CalibModel(nn.Module):
             ("bn5", nn.BatchNorm2d(64)),
             ("elu5", nn.ELU()),
 
-            ("avg_pool", nn.AvgPool2d(3, stride=1)),
+            ("avg_pool", nn.AvgPool2d(3, stride=2)),
             ("flatten", nn.Flatten(1))
         ]))   
         
