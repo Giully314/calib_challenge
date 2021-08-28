@@ -75,6 +75,7 @@ def fit(epochs: int, history: History, grad_flow: GradientFlowVisualization, tra
     history["total_time"] = total_time
 
     if grad_flow is not None:
+        print("Saving gradient flow....")
         grad_flow.save_gradient_flow()
 
     if verbose:
