@@ -11,6 +11,7 @@ import random
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from utils import Timer
+from informations import History, GradientFlowVisualization, ActivationMapVisualization
 
 #TODO add verbose mode with timing and ecc...
 #TODO ADD LOGGING
@@ -59,6 +60,7 @@ def main(cfg: DictConfig):
     save_history = args.save_history
     save_model = args.save_model
     activation_maps = args.activation_maps
+    grad_flow = args.grad_flow
 
     if deterministic:
         seed = 1729
@@ -96,14 +98,13 @@ def main(cfg: DictConfig):
     print(f"{timer}")
 
 
-
-
     if args.range is not None:
         start = args.range[0]
         end = args.range[1]
         for ds in train_dss:
             ds.frames = ds.frames[start:end]
             ds.angles = ds.angles[start:end]
+
 
     train_dls = [
         DataLoader(train_ds, batch_size,
@@ -130,29 +131,30 @@ def main(cfg: DictConfig):
     elif args.opt == "adamw":
         opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
     elif args.opt == "sgd":
-        opt = torch.optim.SGD(model.parameters(), lr=args.lr)
+        opt = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
 
     loss = nn.MSELoss()
 
-    history = trn.History(args.training_info_dir, videos, args.valid_video, model, opt, loss, None, batch_size)
-    
-    trn.fit(epochs, history, train_dls, valid_dl, dev, verbose=verbose)
+    history = History(args.training_info_dir, videos, args.valid_video, model, opt, loss, None, batch_size)
+    grad_visual = GradientFlowVisualization(args.training_info_dir)
+    visual = grad_visual if grad_flow else None
+    trn.fit(epochs, history, visual, train_dls, valid_dl, dev, verbose=verbose)
 
-    visualization = trn.ModelVisualization(training_info_dir, model, dev, verbose)
     if activation_maps is not None:
+        activation_map_visual = ActivationMapVisualization(args.training_info_dir, model, dev, verbose)
         for layer_name in args.activation_maps:
-            visualization.register_activation_map(layer_name)
+            activation_map_visual.register_activation_map(layer_name)
 
         #NOTE: TECHNICALLY THE VISUALIZATION OF THE ACTIVATION MAPS SHOULD BE DONE ON VALID/TEST SET. FOR NOW I'M GOING TO DO IT 
         # ON THE TRAINING SET.
         ds = train_dss[0]
         ds.consecutive_frames = 1
         ds.skips = 1
-        ds.frames = ds.frames[0:4]
-        ds.angles = ds.angles[0:4]
+        ds.frames = ds.frames[0:2]
+        ds.angles = ds.angles[0:2]
         dl = DataLoader(ds, batch_size=1)
-        visualization.trigger_activation_maps(dl)
-        visualization.save_activation_maps()
+        activation_map_visual.trigger_activation_maps(dl)
+        activation_map_visual.save_activation_maps()
 
 
     if save_history:
