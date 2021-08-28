@@ -6,3 +6,4 @@ conversion:
   height_divisor: 3
   width_divisor: 3
   yuv: false 
+  crop: null
