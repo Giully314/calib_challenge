@@ -29,7 +29,7 @@ class ConsecutiveFramesDataset(Dataset):
     def __getitem__(self, idx):
         frames = self.frames[idx : idx + (self.consecutive_frames * self.skips) : self.skips]
         angles = self.angles[idx : idx + (self.consecutive_frames * self.skips) : self.skips].reshape(-1)
-        
+        # angles = self.angles[idx + (self.consecutive_frames * self.skips)]
         #TODO add the transformation to angles too, if the frame is flipped.
         if self.transform is not None:
             frames = self.transform(frames)
