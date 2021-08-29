@@ -255,7 +255,7 @@ class CalibModel(nn.Module):
        
         # out = self.dropout(out)
         out = out.permute(1, 0, 2)
-       
+    
         out = self.process_information(out)
 
         return out
