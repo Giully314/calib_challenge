@@ -53,6 +53,8 @@ class History:
                 s += f"{str(type(self.scheduler))}"
                 s += f"\n{self.scheduler}\n\n"
 
+            s += f"Batch size: {self.batch_size}\n\n"
+
             s += f"Training videos {self.train_videos}\n"
             if self.valid_video is not None:
                 s += f"Valid video {self.valid_video}\n\n"
@@ -172,7 +174,7 @@ class ActivationMapVisualization:
                     print(f"Save file {file}")
 
                 act = activations[i].squeeze().cpu()
-                fig, ax_array = plt.subplots(n_rows, n_cols, figsize=(20, 18), dpi=160)
+                fig, ax_array = plt.subplots(n_rows, n_cols, figsize=(18, 16), dpi=160)
                 for i in range(n_rows):
                     for j in range(n_cols):
                         ax_array[i, j].imshow(act[i * n_cols + j], cmap='gray')
@@ -189,9 +191,10 @@ class ActivationMapVisualization:
         """
         if self.verbose:
             print("Trigger activation maps")
+        self.model.to(torch.device("cpu"))
         self.model.eval()
         for x, y in dl:
-            self.model(x.to(self.dev))
+            self.model.extract_features(x)
 
 @dataclass
 class GradientFlowVisualization:
@@ -205,6 +208,7 @@ class GradientFlowVisualization:
         self.dir = os.path.join(self.dir, "gradient_flow_visual")
         ut.create_dir(self.dir)
         self.fig = None
+        self.temp = ""
 
     def register_gradient_flow(self, named_parameters):
         # def plot_grad_flow(named_parameters):
@@ -222,9 +226,10 @@ class GradientFlowVisualization:
         #     plt.ylabel("average gradient")
         #     plt.title("Gradient flow")
         #     plt.grid(True)
-            
+        
+        #TODO change this to objected oriented approach
         if self.fig is None:
-            self.fig = plt.figure(figsize=(20, 18), dpi=160)
+            self.fig = plt.figure(figsize=(14, 12), dpi=160)
         
         ave_grads = []
         max_grads= []
@@ -235,6 +240,7 @@ class GradientFlowVisualization:
                 ave_grads.append(p.grad.abs().mean().cpu())
                 max_grads.append(p.grad.abs().max().cpu())
         
+        #maybe split the max_grads and ave_grads into 2 differents plots.
         plt.bar(np.arange(len(max_grads)), max_grads, alpha=0.1, lw=1, color="c")
         plt.bar(np.arange(len(max_grads)), ave_grads, alpha=0.1, lw=1, color="b")
         plt.hlines(0, 0, len(ave_grads)+1, lw=2, color="k" )
