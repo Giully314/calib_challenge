@@ -1,4 +1,4 @@
-from models import CalibModel, CalibParams
+from models import CalibModel, CalibParams, RMSELoss
 from torch.utils.data import DataLoader
 import torch
 from datasets import get_consecutive_frames_ds
@@ -13,56 +13,17 @@ from omegaconf import DictConfig, OmegaConf
 from utils import Timer
 from informations import History, GradientFlowVisualization, ActivationMapVisualization
 
-#TODO add verbose mode with timing and ecc...
 #TODO ADD LOGGING
 
 @hydra.main(config_path="config")
 def main(cfg: DictConfig):
     args = cfg["training"]["train"]
-
-    verbose = args.verbose
     
-    data_dir = args.data
-    videos = args.train_videos
-    videos_parts = args.videos_parts
-
-    valid_model = args.valid_model
-    valid_video = args.valid_video
-    valid_part = args.valid_part
-
-    test_model = args.test_model
-    test_video = args.test_video
-    test_part = args.test_part
-    
-    deterministic = args.deterministic
-
     img_size = tuple(args.frame_size)
-    
-    consecutive_frames = args.consecutive_frames
-    skips = args.skips
-
-    batch_size = args.batch_size
-    shuffle = args.shuffle
-    persistent_workers = args.persistent_workers
-    train_workers = args.train_workers
-    valid_workers = args.valid_workers
-    test_workers = args.test_workers
-    
 
     timer = Timer()
 
-    opt = args.opt
-    lr = args.lr
-
-    epochs = args.epochs
-
-    training_info_dir = args.training_info_dir
-    save_history = args.save_history
-    save_model = args.save_model
-    activation_maps = args.activation_maps
-    grad_flow = args.grad_flow
-
-    if deterministic:
+    if args.deterministic:
         seed = 1729
         def reset_rand_seed(): 
             random.seed(seed)
@@ -71,29 +32,26 @@ def main(cfg: DictConfig):
         reset_rand_seed()
         #torch.use_deterministic_algorithms(True)
 
-    dev = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    if not args.debug:
+        torch.autograd.set_detect_anomaly(False)
+        torch.autograd.profiler.profile(enabled=False)
 
-    
+
+    dev = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     print(f"DEVICE {dev}")
 
-    height, width = img_size
 
-
-    train_videos = [os.path.join(data_dir, os.path.join(str(video), str(part) + ".pt")) 
-                    for video, video_parts in zip(videos, videos_parts) for part in video_parts]
-    train_angles = [os.path.join(data_dir, os.path.join(str(video), str(part) + ".txt")) 
-                            for video, video_parts in zip(videos, videos_parts) for part in video_parts]
+    train_videos = [os.path.join(args.data_dir, os.path.join(str(video), str(part) + ".pt")) 
+                    for video, video_parts in zip(args.train_videos, args.videos_parts) for part in video_parts]
+    train_angles = [os.path.join(args.data_dir, os.path.join(str(video), str(part) + ".txt")) 
+                            for video, video_parts in zip(args.train_videos, args.videos_parts) for part in video_parts]
     
 
     #TODO implement a config file for transformations. 
-    #trf_crop = CropVideo(int(width * 0.1), int(width - width * 0.1), int(height *0.45), int(height - height * 0.25))
-    #trf_crop = CropVideo(int(width * 0.3), int(width - width * 0.3), int(height *0.45), int(height - height * 0.25))
-    
-    #img_size = (trf_crop.y2 - trf_crop.y1, trf_crop.x2 - trf_crop.x1)
 
     print("Loading datasets...", end=" ")
     timer.start()
-    train_dss = [get_consecutive_frames_ds(video_path, angles_path, consecutive_frames, skips) 
+    train_dss = [get_consecutive_frames_ds(video_path, angles_path, args.consecutive_frames, args.skips) 
                 for video_path, angles_path in zip(train_videos, train_angles)]
     timer.end()
     print(f"{timer}")
@@ -108,16 +66,16 @@ def main(cfg: DictConfig):
 
 
     train_dls = [
-        DataLoader(train_ds, batch_size,
-        num_workers=train_workers, shuffle=shuffle, pin_memory=True, persistent_workers=persistent_workers) 
+        DataLoader(train_ds, args.batch_size,
+        num_workers=args.train_workers, shuffle=args.shuffle, pin_memory=True, persistent_workers=args.persistent_workers) 
         for train_ds in train_dss]
 
 
-    valid_dl = None
-    if valid_model:
+    valid_dls = None
+    if args.valid_model:
         pass
     
-    calib_params = CalibParams(img_size, consecutive_frames, args.lstm_hidden_size, args.lstm_num_layers, args.linear_layers)
+    calib_params = CalibParams(img_size, args.consecutive_frames, args.lstm_hidden_size, args.lstm_num_layers, args.linear_layers)
     model = CalibModel(calib_params)
     model.to(dev)
     pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -126,6 +84,7 @@ def main(cfg: DictConfig):
     print(f"CNN SHAPE OUT: {model.cnn_shape_out}")
     print(f"Number of parameters {pytorch_total_params}")
     
+
     #TODO add support for passing other parameters to the optimizer
     if args.opt == "adam":
         opt = torch.optim.Adam(model.parameters(), lr=args.lr)
@@ -134,41 +93,45 @@ def main(cfg: DictConfig):
     elif args.opt == "sgd":
         opt = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
 
-    loss = nn.MSELoss()
 
-    history = History(args.training_info_dir, videos, args.valid_video, model, opt, loss, None, batch_size)
-    grad_visual = GradientFlowVisualization(args.training_info_dir)
-    visual = grad_visual if grad_flow else None
-    trn.fit(epochs, history, visual, train_dls, valid_dl, dev, verbose=verbose)
-
-    if activation_maps is not None:
-        activation_map_visual = ActivationMapVisualization(args.training_info_dir, model, dev, verbose)
-        for layer_name in args.activation_maps:
-            activation_map_visual.register_activation_map(layer_name)
-
-        #NOTE: TECHNICALLY THE VISUALIZATION OF THE ACTIVATION MAPS SHOULD BE DONE ON VALID/TEST SET. FOR NOW I'M GOING TO DO IT 
-        # ON THE TRAINING SET.
-        ds = train_dss[0]
-        ds.consecutive_frames = 1
-        ds.skips = 1
-        ds.frames = ds.frames[0:2]
-        ds.angles = ds.angles[0:2]
-        dl = DataLoader(ds, batch_size=1)
-        activation_map_visual.trigger_activation_maps(dl)
-        activation_map_visual.save_activation_maps()
+    if args.loss == "mse":
+        loss = nn.MSELoss()
+    elif args.loss == "rmse":
+        loss = RMSELoss()
 
 
-    if save_history:
+    scheduler =  torch.optim.lr_scheduler.MultiStepLR(opt, args.scheduler_epochs, gamma=args.scheduler_gamma)
+
+    history = History(args.training_info_dir, args.train_videos, args.valid_video, 
+                        model, opt, loss, scheduler, args.batch_size, args.history_active)
+    
+    grad_flow = GradientFlowVisualization(args.training_info_dir, args.grad_flow_epochs, args.grad_flow_active)
+    
+    activation_map = ActivationMapVisualization(args.training_info_dir, model, dev, args.activation_map_active)
+    
+    trn.fit(args.epochs, history, grad_flow, train_dls, valid_dls, dev, verbose=args.verbose)
+
+    if args.history_save_train_info:
         history.save_training_info()
     
-    
-    if test_model:
+    if args.history_save_model:
+        history.save_model()
+
+    if args.test_model:
         #load test data here
         pass
     
-    
-    if save_model:
-        history.save_model()
+
+    if activation_map is not None:
+        for layer_name in args.activation_map_layers:
+            activation_map.register_activation_map(layer_name)
+
+        #NOTE: TECHNICALLY THE VISUALIZATION OF THE ACTIVATION MAPS SHOULD BE DONE ON VALID/TEST SET. FOR NOW I'M GOING TO DO IT 
+        # ON THE TRAINING SET.
+        act_map_dss = [train_dss[i] for i in args.activation_map_dss]
+        activation_map.trigger_activation_maps(act_map_dss, args.activation_map_frames)
+        activation_map.save_activation_maps()
+
 
 if __name__ == "__main__":
     main()
