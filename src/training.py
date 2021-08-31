@@ -16,11 +16,14 @@ def loss_batch(model: nn.Module, loss_func: nn.Module, xb: torch.Tensor, yb: tor
     if opt is not None:
         opt.zero_grad()
         loss.backward()
-        if grad_visual is not None:
-            grad_visual.register_gradient_flow(model.named_parameters())
-        opt.step()
         
+        if grad_visual:
+            grad_visual.register_gradient_flow(model.named_parameters())
+        
+        opt.step()
+
     return loss.item(), len(xb)
+
 
 #TODO: currently the to device operation is done async. Check if there are any speed up.
 def fit(epochs: int, history: History, grad_flow: GradientFlowVisualization, train_dls: list[DataLoader], valid_dls: list[DataLoader], dev: torch.device,
