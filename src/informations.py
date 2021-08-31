@@ -211,24 +211,29 @@ class ActivationMapVisualization:
             plt.close(fig)
 
 
-    def trigger_activation_maps(self, ds: ConsecutiveFramesDataset, frames: list[int]):  
+    def trigger_activation_maps(self, dss: list[ConsecutiveFramesDataset], frames: list[int]):  
         """
         ds: the dataset.
         frames: which frames to use.
         """
-        temp_cons_frames = ds.consecutive_frames
-        temp_skips = ds.skips
-        ds.consecutive_frames = 1
-        ds.skips = 1
+        temp_cons_frames = dss[0].consecutive_frames
+        temp_skips = dss[0].skips
+        
+        for ds in dss:
+            ds.consecutive_frames = 1
+            ds.skips = 1
 
         self.model.to(torch.device("cpu"))
         self.model.eval()
-        for frame in frames:
-            x, y = ds[frame]
-            self.model.extract_features(x.unsqueeze(0))
+        
+        for i, ds in enumerate(dss):
+            for frame in frames[i]:
+                x, y = ds[frame]
+                self.model.extract_features(x.unsqueeze(0))
 
-        ds.consecutive_frames = temp_cons_frames
-        ds.skips = temp_skips
+        for ds in dss:
+            ds.consecutive_frames = temp_cons_frames
+            ds.skips = temp_skips
 
     
     def __bool__(self):
