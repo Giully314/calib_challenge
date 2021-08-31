@@ -152,6 +152,9 @@ class History:
         self.history[idx] = value
 
 
+    def __bool__(self):
+        return self.active
+
 
 @dataclass
 class ActivationMapVisualization:
@@ -227,6 +230,10 @@ class ActivationMapVisualization:
         ds.consecutive_frames = temp_cons_frames
         ds.skips = temp_skips
 
+    
+    def __bool__(self):
+        return self.active
+
 
 @dataclass
 class GradientFlowVisualization:
@@ -294,6 +301,10 @@ class GradientFlowVisualization:
         self.fig = None
         self.ax = None
         self.active = False
+    
+    
+    def __bool__(self):
+        return self.active
 
 
 class TestModel:
