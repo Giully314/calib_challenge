@@ -7,11 +7,13 @@ import numpy as np
 from dataclasses import dataclass, field 
 
 import os
+from datasets import ConsecutiveFramesDataset
 
 import utils as ut
 
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
+
 
 @dataclass
 class History:
@@ -30,16 +32,22 @@ class History:
     loss_func: nn.Module
     scheduler: torch.optim.lr_scheduler
     batch_size: int
-    history: dict = field(init=False)
+    active: bool = True
 
   
     def __post_init__(self):
+        if not self.active:
+            return
+
         self.history = {"train_loss": [], "valid_loss": [], "total_time": 0.0}
         self.dir = os.path.join(self.dir, "history")
         ut.create_dir(self.dir)
 
 
     def save_training_info(self):
+        if not self.active:
+            return
+    
         file_txt = os.path.join(self.dir, "history.txt")
 
         valid = len(self.history["valid_loss"]) > 0
@@ -80,48 +88,65 @@ class History:
         self.save_training_curve()
 
     def save_training_curve(self):
+        if not self.active:
+            return
+
         train_loss = self.history["train_loss"]
         epochs = [i for i in range(len(train_loss))]
 
-        fig = plt.figure(figsize=(18, 16), dpi=160)
-        ax = fig.add_subplot()
+        fig, ax = plt.subplots(figsize=(14, 12))
         ax.plot(epochs, train_loss, "b-", label="TrainLoss")
         ax.legend(loc="center right", fontsize=12) 
         ax.set_xlabel("Epoch", fontsize=16)
         lr = self.opt.param_groups[0]["lr"]
         ax.set_ylabel(f"Train Loss with lr {lr} and min {min(train_loss)}", fontsize=16)
+        
         h_file = os.path.join(self.dir, "training_curve.png")
-        plt.savefig(h_file, transparent=False)
+        plt.savefig(h_file, dpi=160)
+        plt.close(fig)
     
     
     def save_training_valid_curve(self):
+        if not self.active:
+            return
+
         train_loss = self.history["train_loss"]
         val_loss = self.history["valid_loss"]
         epochs = [i for i in range(len(train_loss))]
 
-        fig = plt.figure(figsize=(18, 16), dpi=160)
-        ax = fig.add_subplot()
+        fig, ax = plt.subplots(figsize=(14, 12))
         ax.plot(epochs, train_loss, "b-", label="TrainLoss")
         ax.plot(epochs, val_loss, "g-", label="ValidLoss")
         ax.legend(loc="center right", fontsize=12) 
         ax.set_xlabel("Epoch", fontsize=16)
         ax.set_ylabel("Loss", fontsize=16)
         ax.axis([0, len(epochs)+1, 0, max(max(val_loss), max(train_loss)) + 0.01])
-        h_file = os.path.join(self.dir, "training_valid_curve.png")
-        plt.savefig(h_file, transparent=False)
+        
+        h_file = os.path.join(self.dir, "training_valid_curve.png")      
+        plt.savefig(h_file, dpi=160)
+        plt.close(fig)
 
 
     def save_model(self) -> None:
+        if not self.active:
+            return
+
         path = os.path.join(self.dir, "model_state_dict.pt")
         ut.save_model(self.model, path)
 
 
     def __getitem__(self, idx):
+        if not self.active:
+            return
+
         if idx != "train_loss" and idx != "valid_loss" and idx != "total_time":
             raise KeyError
         return self.history[idx]
 
     def __setitem__(self, idx, value):
+        if not self.active:
+            return
+
         if idx != "total_time":
             raise KeyError
         self.history[idx] = value
@@ -137,10 +162,13 @@ class ActivationMapVisualization:
     dir: str
     model: nn.Module
     dev: torch.device
-    verbose: bool = False
+    active: bool = True
     
 
     def __post_init__(self):
+        if not self.active: #the class is not active, so don't initialize the resources.
+            return
+
         self.activation_map_hook = ut.ActivationMapHook()
         self.dir = os.path.join(self.dir, "activation_map_visual")
         ut.create_dir(self.dir)
@@ -150,10 +178,9 @@ class ActivationMapVisualization:
         """
         Works only for cnn.
         """
-        if self.verbose:
-            print(f"Register activation map for {layer_name}")
         i = ut.get_index_by_name(self.model.cnn, layer_name)
         self.model.cnn[i].register_forward_hook(self.activation_map_hook.get_activation(layer_name))
+
 
     def save_activation_maps(self):
         """
@@ -164,103 +191,109 @@ class ActivationMapVisualization:
             ut.create_dir(d)
             n_cols = 3
             n_rows = activations[0].shape[1] // n_cols
-            
-            if self.verbose:
-                print(f"Save activation map for {layer_name}")
+            fig, ax_array = plt.subplots(n_rows, n_cols, figsize=(14, 12))
+    
             for i in range(len(activations)):
                 file = os.path.join(d, str(i) + ".png")
 
-                if self.verbose:
-                    print(f"Save file {file}")
-
                 act = activations[i].squeeze().cpu()
-                fig, ax_array = plt.subplots(n_rows, n_cols, figsize=(18, 16), dpi=160)
                 for i in range(n_rows):
                     for j in range(n_cols):
                         ax_array[i, j].imshow(act[i * n_cols + j], cmap='gray')
-                plt.savefig(file)
-                plt.close(fig)
+                
+                plt.savefig(file, dpi=160)
+                plt.cla()
+                plt.clf()
 
-            if self.verbose:
-                print()
+            plt.close(fig)
 
-    def trigger_activation_maps(self, dl: DataLoader):  
+
+    def trigger_activation_maps(self, ds: ConsecutiveFramesDataset, frames: list[int]):  
         """
-        Trigger the registered activation maps.
-        DATALOADER SHOULD HAVE BATCH_SIZE = 1.
+        ds: the dataset.
+        frames: which frames to use.
         """
-        if self.verbose:
-            print("Trigger activation maps")
+        temp_cons_frames = ds.consecutive_frames
+        temp_skips = ds.skips
+        ds.consecutive_frames = 1
+        ds.skips = 1
+
         self.model.to(torch.device("cpu"))
         self.model.eval()
-        for x, y in dl:
-            self.model.extract_features(x)
+        for frame in frames:
+            x, y = ds[frame]
+            self.model.extract_features(x.unsqueeze(0))
+
+        ds.consecutive_frames = temp_cons_frames
+        ds.skips = temp_skips
+
 
 @dataclass
 class GradientFlowVisualization:
     """
-    USE THIS CLASS ONLY IF NO OTHER PYPLOT FIGURE IS USED INSIDE THE TRAINING LOOP 
+    Class that register the gradient flow every t epochs. This class istance can be used only one time;
+    create an istance for each different use.
     """
     
     dir: str
+    epochs: int = 1 #how often register the gradient flow.
+    active: bool = True #Activate this class.
 
     def __post_init__(self):
+        if not self.active: #the class is not active, so don't initialize the resources.
+            return
+
         self.dir = os.path.join(self.dir, "gradient_flow_visual")
         ut.create_dir(self.dir)
         self.fig = None
-        self.temp = ""
+        self.ax = None
+        self.count = 0
+        self.fig, self.ax = plt.subplots(figsize=(8, 6))
 
-    def register_gradient_flow(self, named_parameters):
-        # def plot_grad_flow(named_parameters):
-        #     ave_grads = []
-        #     layers = []
-        #     for n, p in named_parameters:
-        #         if(p.requires_grad) and ("bias" not in n):
-        #             layers.append(n)
-        #             ave_grads.append(p.grad.abs().mean())
-        #     plt.plot(ave_grads, alpha=0.3, color="b")
-        #     plt.hlines(0, 0, len(ave_grads)+1, linewidth=1, color="k" )
-        #     plt.xticks(range(0,len(ave_grads), 1), layers, rotation="vertical")
-        #     plt.xlim(xmin=0, xmax=len(ave_grads))
-        #     plt.xlabel("Layers")
-        #     plt.ylabel("average gradient")
-        #     plt.title("Gradient flow")
-        #     plt.grid(True)
+
+    def register_gradient_flow(self, named_parameters):    
+        if not self.active:
+            return
         
-        #TODO change this to objected oriented approach
-        if self.fig is None:
-            self.fig = plt.figure(figsize=(14, 12), dpi=160)
-        
-        ave_grads = []
-        max_grads= []
-        layers = []
-        for n, p in named_parameters:
-            if(p.requires_grad) and ("bias" not in n):
-                layers.append(n)
-                ave_grads.append(p.grad.abs().mean().cpu())
-                max_grads.append(p.grad.abs().max().cpu())
-        
-        #maybe split the max_grads and ave_grads into 2 differents plots.
-        plt.bar(np.arange(len(max_grads)), max_grads, alpha=0.1, lw=1, color="c")
-        plt.bar(np.arange(len(max_grads)), ave_grads, alpha=0.1, lw=1, color="b")
-        plt.hlines(0, 0, len(ave_grads)+1, lw=2, color="k" )
-        plt.xticks(range(0,len(ave_grads), 1), layers, rotation="vertical")
-        plt.xlim(left=0, right=len(ave_grads))
-        plt.ylim(bottom = -0.001, top=0.02) # zoom in on the lower gradient regions
-        plt.xlabel("Layers")
-        plt.ylabel("average gradient")
-        plt.title("Gradient flow")
-        plt.grid(True)
-        plt.legend([Line2D([0], [0], color="c", lw=4),
-                    Line2D([0], [0], color="b", lw=4),
-                    Line2D([0], [0], color="k", lw=4)], ['max-gradient', 'mean-gradient', 'zero-gradient'])
+        if self.count % self.epochs == 0:
+            ave_grads = []
+            max_grads= []
+            layers = []
+            #This loop is memory intensive because we need to copy the data into the cpu before to use them.
+            for n, p in named_parameters:
+                if(p.requires_grad) and ("bias" not in n):
+                    layers.append(n)
+                    ave_grads.append(p.grad.abs().mean().cpu())
+                    max_grads.append(p.grad.abs().max().cpu())
+            
+            #maybe split the max_grads and ave_grads into 2 differents plots.
+            self.ax.bar(np.arange(len(max_grads)), max_grads, alpha=0.1, lw=1, color="c")
+            self.ax.bar(np.arange(len(max_grads)), ave_grads, alpha=0.1, lw=1, color="b")
+            self.ax.hlines(0, 0, len(ave_grads)+1, lw=2, color="k" )
+            self.ax.xticks(range(0,len(ave_grads), 1), layers, rotation="vertical")
+            self.ax.xlim(left=0, right=len(ave_grads))
+            self.ax.ylim(bottom = -0.001, top=0.02) # zoom in on the lower gradient regions
+            self.ax.xlabel("Layers")
+            self.ax.ylabel("average gradient")
+            self.ax.title("Gradient flow")
+            self.ax.grid(True)
+            self.ax.legend([Line2D([0], [0], color="c", lw=4),
+                        Line2D([0], [0], color="b", lw=4),
+                        Line2D([0], [0], color="k", lw=4)], ['max-gradient', 'mean-gradient', 'zero-gradient'])
+
+        self.count += 1
 
 
     def save_gradient_flow(self):
+        if not self.active:
+            return
+
         file = os.path.join(self.dir, "gradient_flow.png")
-        plt.savefig(file)
-        plt.close(self.fig)
+        plt.savefig(file, bbox_inches="tight")
+        plt.close(self.fig, dpi=100)
         self.fig = None
+        self.ax = None
+        self.active = False
 
 
 class TestModel:
