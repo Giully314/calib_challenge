@@ -20,7 +20,8 @@ class ConsecutiveFramesDataset(Dataset):
     def __init__(self, video_path: str, angles_path: str, consecutive_frames: int = 3, skips: int = 2, 
                  transform : T.Compose = None):
         self.frames = torch.load(video_path)
-        self.angles = torch.from_numpy(np.loadtxt(angles_path, dtype=np.float32))
+        # self.angles = torch.from_numpy(np.rad2deg(np.loadtxt(angles_path, dtype=np.float64), dtype=np.float64).astype(np.float32))
+        self.angles = torch.from_numpy(np.loadtxt(angles_path, np.float32))
         self.transform = transform
         self.consecutive_frames = consecutive_frames
         self.skips = skips
