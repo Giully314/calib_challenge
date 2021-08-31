@@ -173,9 +173,6 @@ class CalibModel(nn.Module):
     def __init__(self, calib_params: CalibParams):
         super(CalibModel, self).__init__()
 
-        # block_arg1 = BlockArgs(1, 64, 128, 3, 2)
-        # block_arg2 = BlockArgs(1, 128, 128, 3, 1)
-
         #Nvidia basic as starting model.
         self.cnn = nn.Sequential(collections.OrderedDict([
             ("bn0", nn.BatchNorm2d(3)),
