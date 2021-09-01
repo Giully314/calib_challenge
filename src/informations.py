@@ -260,7 +260,7 @@ class GradientFlowVisualization:
         self.fig = None
         self.ax = None
         self.count = 0
-        self.fig, self.ax = plt.subplots(figsize=(8, 6))
+        #self.fig, self.ax = plt.subplots(figsize=(8, 6))
 
 
     def register_gradient_flow(self, named_parameters):    
@@ -277,21 +277,35 @@ class GradientFlowVisualization:
                     layers.append(n)
                     ave_grads.append(p.grad.abs().mean().cpu())
                     max_grads.append(p.grad.abs().max().cpu())
+
+            if self.fig is None:
+                self.fig, self.ax = plt.subplots(figsize=(8, 6))
+                self.ax.hlines(0, 0, len(ave_grads)+1, lw=2, color="k" )
+                plt.xticks(range(0,len(ave_grads), 1), layers, rotation="vertical")
+                self.ax.set_xlim(left=0, right=len(ave_grads))
+                self.ax.set_ylim(bottom = -0.001, top=0.02) # zoom in on the lower gradient regions
+                self.ax.set_xlabel("Layers")
+                self.ax.set_ylabel("average gradient")
+                self.ax.set_title("Gradient flow")
+                self.ax.grid(True)
+                # self.ax.legend([Line2D([0], [0], color="c", lw=4),
+                #         Line2D([0], [0], color="b", lw=4),
+                #         Line2D([0], [0], color="k", lw=4)], ['max-gradient', 'mean-gradient', 'zero-gradient'])
             
             #maybe split the max_grads and ave_grads into 2 differents plots.
             self.ax.bar(np.arange(len(max_grads)), max_grads, alpha=0.1, lw=1, color="c")
             self.ax.bar(np.arange(len(max_grads)), ave_grads, alpha=0.1, lw=1, color="b")
-            self.ax.hlines(0, 0, len(ave_grads)+1, lw=2, color="k" )
-            self.ax.xticks(range(0,len(ave_grads), 1), layers, rotation="vertical")
-            self.ax.xlim(left=0, right=len(ave_grads))
-            self.ax.ylim(bottom = -0.001, top=0.02) # zoom in on the lower gradient regions
-            self.ax.xlabel("Layers")
-            self.ax.ylabel("average gradient")
-            self.ax.title("Gradient flow")
-            self.ax.grid(True)
-            self.ax.legend([Line2D([0], [0], color="c", lw=4),
-                        Line2D([0], [0], color="b", lw=4),
-                        Line2D([0], [0], color="k", lw=4)], ['max-gradient', 'mean-gradient', 'zero-gradient'])
+            # self.ax.hlines(0, 0, len(ave_grads)+1, lw=2, color="k" )
+            # plt.xticks(range(0,len(ave_grads), 1), layers, rotation="vertical")
+            # self.ax.set_xlim(left=0, right=len(ave_grads))
+            # self.ax.set_ylim(bottom = -0.001, top=0.02) # zoom in on the lower gradient regions
+            # self.ax.set_xlabel("Layers")
+            # self.ax.set_ylabel("average gradient")
+            # self.ax.set_title("Gradient flow")
+            # self.ax.grid(True)
+            # self.ax.legend([Line2D([0], [0], color="c", lw=4),
+            #             Line2D([0], [0], color="b", lw=4),
+            #             Line2D([0], [0], color="k", lw=4)], ['max-gradient', 'mean-gradient', 'zero-gradient'])
 
         self.count += 1
 
@@ -301,8 +315,9 @@ class GradientFlowVisualization:
             return
 
         file = os.path.join(self.dir, "gradient_flow.png")
+        # plt.legend(loc='upper right')
         plt.savefig(file, bbox_inches="tight")
-        plt.close(self.fig, dpi=100)
+        plt.close(self.fig)
         self.fig = None
         self.ax = None
         self.active = False
