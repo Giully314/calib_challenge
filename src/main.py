@@ -122,7 +122,7 @@ def main(cfg: DictConfig):
         pass
     
 
-    if activation_map is not None:
+    if activation_map:
         for layer_name in args.activation_map_layers:
             activation_map.register_activation_map(layer_name)
 
