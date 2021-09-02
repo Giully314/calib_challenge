@@ -66,26 +66,6 @@ def get_frame_ds(video_path: str, angles_path: str, transform: T.Compose = None)
     return FrameDataset(video_path, angles_path, transform) 
 
 
-class RangeFrameDataset(Dataset):
-    def __init__(self, video_path: str, angles_path: str, start: int, end: int):
-        self.frames = torch.load(video_path)[start:end].detach.clone()
-        self.angles = torch.from_numpy(np.loadtxt(angles_path, np.float32))[start:end].detach().clone()
-
-    def __getitem__(self, idx):
-        return (self.frames[idx], self.angles[idx])
-
-    def __len__(self):
-        return len(self.frames)
-
-
-def get_range_frame_ds(video_path: str, angles_path: str, start=0, end=2) -> FrameDataset:
-    return RangeFrameDataset(video_path, angles_path, start, end) 
-
-
-
-def get_dl(ds, batch_size=32, shuffle=False, num_workers=2, persistent_workers=True, pin_memory=True) -> DataLoader:
-    return DataLoader(ds, batch_size=batch_size, shuffle=shuffle, pin_memory=pin_memory, 
-                     num_workers=num_workers, persistent_workers=persistent_workers)
 
 
 
