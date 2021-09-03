@@ -1,7 +1,7 @@
 from models import CalibModel, CalibParams, RMSELoss
 from torch.utils.data import DataLoader
 import torch
-from datasets import get_consecutive_frames_ds
+from datasets import VideoDataset, get_consecutive_frames_ds
 import training as trn
 from custom_transform import CropVideo
 import os 
@@ -40,7 +40,8 @@ def main(cfg: DictConfig):
     dev = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     print(f"DEVICE {dev}")
 
-
+    #NOTE: if the VideoDataset is used, make sure to shuffle these lists, for a better random behavior.
+    #TODO: maybe divide the videos into equal small size (like 256 frames per block).
     train_videos = [os.path.join(args.data_dir, os.path.join(str(video), str(part) + ".pt")) 
                     for video, video_parts in zip(args.train_videos, args.videos_parts) for part in video_parts]
     train_angles = [os.path.join(args.data_dir, os.path.join(str(video), str(part) + ".txt")) 
@@ -51,8 +52,11 @@ def main(cfg: DictConfig):
 
     print("Loading datasets...", end=" ")
     timer.start()
-    train_dss = [get_consecutive_frames_ds(video_path, angles_path, args.consecutive_frames, args.skips) 
-                for video_path, angles_path in zip(train_videos, train_angles)]
+    if args.dataset == "frameds":
+        train_dss = [get_consecutive_frames_ds(video_path, angles_path, args.consecutive_frames, args.skips) 
+                    for video_path, angles_path in zip(train_videos, train_angles)]
+    elif args.dataset == "videods":
+        train_dss = [VideoDataset(train_videos, train_angles, args.consecutive_frames, args.skips)]
     timer.end()
     print(f"{timer}")
 
