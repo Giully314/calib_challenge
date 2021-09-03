@@ -14,6 +14,22 @@ class BGRToYUV:
     def __call__(self, img):
         return cv.cvtColor(img, cv.COLOR_BGR2YUV)
 
+class BGRtoRGB:
+    def __call__(self, frame):
+        return cv.cvtColor(frame, cv.COLOR_BGR2RGB)
+    
+class RGBtoBGR:
+    def __call__(self, frame):
+        return cv.cvtColor(frame, cv.COLOR_RGB2BGR)    
+
+class YUVtoBGR:    
+    def __call__(self, frame):
+        return cv.cvtColor(frame, cv.COLOR_YUV2BGR)    
+
+class ToOpenCV:
+    def __call__(self, frame):
+        return frame.permute(1, 2, 0).numpy()
+
 
 class Crop:
     def __init__(self, y1, y2, x1, x2):
