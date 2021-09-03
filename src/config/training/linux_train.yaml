@@ -22,6 +22,8 @@ train:
 
   consecutive_frames: 10
   skips: 1
+
+  dataset: videods
   
   batch_size: 32 #16 batch should be better
   shuffle: true
@@ -35,7 +37,7 @@ train:
 
   linear_layers: [100] #consider only the hidden linear layers. For the input/output layers the model will deduce the right parameters.
   
-  loss: "rmse"
+  loss: rmse
 
   opt: adam
   lr: 0.0001
