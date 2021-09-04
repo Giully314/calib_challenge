@@ -1,78 +1,24 @@
 import torch
 from torch import nn
-from torch.nn import functional as F
 import functools 
 import operator
 import collections
-
-from torch.nn.modules import linear
-
-
-from utils import (
-    conv1x1, 
-    conv2d,
-)
-
 
 
 class RMSELoss(nn.Module):
     def __init__(self):
         super(RMSELoss, self).__init__()
+        self.mse = nn.MSELoss()
 
     def forward(self, output, target):
-        return torch.sqrt(F.mse_loss(output, target) + 1e-6)
-
-
-
-BlockArgs = collections.namedtuple("BlockArgs", [
-            "num_repeat", "in_channels", "out_channels", "kernel_size", "stride",
-])
-BlockArgs.__new__.__defaults__ = (None,) * len(BlockArgs._fields)
+        return torch.sqrt(self.mse(output, target) + 1e-8)
 
 
 CalibParams = collections.namedtuple("CalibParams", [
-    "img_size", "consecutive_frames", "lstm_hidden_size", "lstm_num_layers", "linear_layers"
+    "img_size", "consecutive_frames", "lstm_hidden_size", "lstm_num_layers", "lstm_dropout", 
+    "linear_layers", "linear_dropout"
 ])
 CalibParams.__new__.__defaults__ = (None,) * len(CalibParams._fields)
-
-
-class ConvBlock(nn.Module):
-    def __init__(self, block_args: BlockArgs):
-        super(ConvBlock, self).__init__()
-        self.block_args = block_args
-
-        
-        self.conv1 = conv2d(self.block_args.in_channels, self.block_args.out_channels, self.block_args.kernel_size, self.block_args.stride)
-        self.norm1 = nn.BatchNorm2d(self.block_args.out_channels)
-
-        self.conv2 = conv2d(self.block_args.out_channels, self.block_args.out_channels, self.block_args.kernel_size)
-        self.norm2 = nn.BatchNorm2d(self.block_args.out_channels)
-        
-        
-        self.activation_fun = nn.ELU()
-        self.proj = None 
-        if self.block_args.stride != 1 or (self.block_args.in_channels != self.block_args.out_channels):
-            self.proj = nn.Sequential(
-                conv1x1(self.block_args.in_channels, self.block_args.out_channels, self.block_args.stride),
-                nn.BatchNorm2d(self.block_args.out_channels))
-        
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        identity = x
-
-        out = self.conv1(x)
-        out = self.norm1(out)
-        out = self.activation_fun(out)
-
-        out = self.conv2(out)
-        out = self.norm2(out)
-
-        if self.proj is not None:
-            identity = self.proj(identity)
-            
-        out += identity
-        out = self.activation_fun(out)
-        
-        return out
 
 
 
@@ -180,7 +126,7 @@ class CalibModel(nn.Module):
             ("conv1", nn.Conv2d(3, 24, 5, 2, bias=False)),
             ("bn1", nn.BatchNorm2d(24)),
             ("elu1", nn.ELU()),
-            # nn.MaxPool2d(3, stride=1),
+            # ("max1", nn.MaxPool2d(3, stride=2)),
 
             ("conv2", nn.Conv2d(24, 36, 5, 2, bias=False)),
             ("bn2", nn.BatchNorm2d(36)),
@@ -198,20 +144,23 @@ class CalibModel(nn.Module):
             ("bn5", nn.BatchNorm2d(64)),
             ("elu5", nn.ELU()),
 
-            ("avg_pool", nn.AvgPool2d(3, stride=2)),
+            ("avg_pool", nn.AvgPool2d(5, stride=2)),
             ("flatten", nn.Flatten(1))
         ]))   
         
         h, w = calib_params.img_size
         out = self.extract_features(torch.zeros(1, 1, 3, h, w))
+        # print(f"OUT SHAPE {out.shape}")
         self.cnn_shape_out = functools.reduce(operator.mul, list(out.shape))
 
         #TODO BEFORE USE LSTM, LEARN WHAT IT IS, IDIOT.
         self.hidden_size = int(calib_params.lstm_hidden_size) #temporary choose 
-        self.lstm = nn.LSTM(self.cnn_shape_out, self.hidden_size, num_layers=calib_params.lstm_num_layers)
+        self.lstm = nn.LSTM(self.cnn_shape_out, self.hidden_size, num_layers=calib_params.lstm_num_layers,
+                            dropout=calib_params.lstm_dropout)
 
-        # self.dropout = nn.Dropout(0.5)
         consecutive_frames = calib_params.consecutive_frames
+
+        #self.dropout = nn.Dropout(calib_params.linear_dropout)
 
         self.linear = nn.ModuleList([])
         self.linear.append(nn.Flatten(1)) #??? it's the right way to process the output of the lstm?
@@ -220,6 +169,7 @@ class CalibModel(nn.Module):
         for i in range(len(linear_layers) - 2):
             self.linear.append(nn.Linear(linear_layers[i], linear_layers[i + 1])) #regulate this layer
             self.linear.append(nn.ELU())
+            self.linear.append(nn.Dropout(calib_params.linear_dropout))
             
         self.linear.append(nn.Linear(linear_layers[-2], linear_layers[-1]))
 
