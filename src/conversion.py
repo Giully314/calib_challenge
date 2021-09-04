@@ -21,7 +21,12 @@ def do_conversion(cfg: DictConfig):
         
     color_repr = BGRToYUV() if args.yuv else bgr_to_rgb   
     trf_resize = T.Resize((new_height, new_width), interpolation=InterpolationMode.BICUBIC)
-    trf_crop = None if args.crop is None else Crop(*list(args.crop))
+
+    trf_crop = None
+    if args.crop is not None:
+        args_crop = [int(new_height * args.crop[0]), int(new_height - new_height * args.crop[1]),
+                        int(new_width * args.crop[2]), int(new_width - new_width * args.crop[3])]
+        trf_crop = Crop(*args_crop)
 
     if trf_crop is not None:
         basic_transform = T.Compose([color_repr, T.ToTensor(), trf_resize, trf_crop])
@@ -45,12 +50,23 @@ def do_conversion(cfg: DictConfig):
     timer = ut.Timer()
 
     #Setup videos 
-    print("Start setup videos.")
-    timer.start()
-    fp.setup_videos(videos, outputs, angles, selected_frames, basic_transform)
-    timer.end()
-    print(f"Finished setup video in {timer}")
-        
+    if len(videos) > 0:
+        print("Start setup videos.")
+        timer.start()
+        if args.single_tensor:
+            fp.setup_videos_single_tensor(videos, outputs, angles, selected_frames, basic_transform)
+        else:
+            fp.setup_videos(videos, outputs, angles, selected_frames, basic_transform)
+        timer.end()
+        print(f"Finished setup video in {timer}")
+    
+
+    if args.test_video is not None:
+        test_video_path = os.path.join(video_dir, str(args.test_video) + ".hevc")
+        test_angles_path = os.path.join(video_dir, str(args.test_video) + ".txt")
+        output = os.path.join(data_dir, str(args.test_video))
+        ut.create_dir(output)
+        fp.convert_test_video(test_video_path, output, test_angles_path, basic_transform)
 
 
 if __name__ == "__main__":
