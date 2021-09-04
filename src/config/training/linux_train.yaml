@@ -1,51 +1,55 @@
 train:
   verbose: true
 
-  data_dir: /home/giully/Programmazione/calib_challenge/src/data3_crop
-  train_videos: [0, 1] #[0, 1, 3, 4]
-  videos_parts: [[0, 1], [0, 1]] #[[0, 1], [0, 1], [0, 1, 2, 3], [0, 1]]
+  data_dir: /home/giully/Programmazione/calib_challenge/src/data_clean
+  train_videos: [0] #[0, 1, 3, 4]
+  videos_parts: [[0, 1, 2, 3, 4, 5]] #, [0, 1, 2, 3, 4, 5], [0, 1, 2], [0, 1, 2, 3, 4, 5]] 
   
+  shuffle_parts: true
+
   range: null #range of frames for each dataset
 
-  valid_model: false
-  valid_video: null
-  valid_part: null
+  valid_model: true
+  valid_videos: [0, 1, 3, 4]
+  valid_parts: [[6], [6], [4], [6]]
   
   test_model: false
   test_video: null 
-  test_part: null
+  # test_part: null
 
   deterministic: true
-  debug: true
+  debug: false
 
-  frame_size: [88, 311] #[291, 388]
+  frame_size: [291, 388] #[116, 311] 
 
   consecutive_frames: 10
   skips: 1
 
   dataset: videods
   
-  batch_size: 32 #16 batch should be better
+  batch_size: 32 
   shuffle: true
   persistent_workers: true
-  train_workers: 4
+  train_workers: 6
   valid_workers: 0
   test_workers: 0
 
-  lstm_hidden_size: 64
+  lstm_hidden_size: 128
   lstm_num_layers: 2
+  lstm_dropout: 0.2
 
-  linear_layers: [100] #consider only the hidden linear layers. For the input/output layers the model will deduce the right parameters.
+  linear_dropout: 0.5
+  linear_layers: [500, 100, 50] #consider only the hidden linear layers. For the input/output layers the model will deduce the right parameters.
   
-  loss: rmse
+  loss: mse
 
   opt: adam
-  lr: 0.0001
+  lr: 0.0003
 
   scheduler_gamma: 1
   scheduler_epochs: [0]
 
-  epochs: 20
+  epochs: 1
 
   training_info_dir: /home/giully/Programmazione/calib_challenge/src/test_results/test_8
 
@@ -55,9 +59,34 @@ train:
 
   activation_map_active: false
   activation_map_layers: ["conv1", "elu1", "conv2"]
-  activation_map_dss: [0] #dataset index
+  activation_map_dss: [0] #dataset index but care when shuffle videos
   activation_map_frames: [[30, 342]]
   
   
   grad_flow_active: true
-  grad_flow_epochs: 4
+  grad_flow_epochs: 3
+
+
+transformations:
+  color_jitter: true
+  brightness: [1, 3]
+  contrast: [1, 3]
+  saturation: 0
+  hue: 0
+
+  rotation: true
+  degrees: [-15, 15]
+
+  translate: true
+  translations: [0.1, 0.1]
+
+  crop: true
+  crop_args: [112, 232, 39, 349] 
+  crop_size: [120, 310]
+
+  horizontal_flip: false
+  vertical_flip: false
+  gauss_blur: false
+
+  transforms:  [[rotation, crop, color_jitter], [translate, crop, color_jitter]]
+

@@ -1,9 +1,12 @@
 conversion:
   input: /home/giully/Programmazione/calib_challenge/src/videos/labeled
-  output: /home/giully/Programmazione/calib_challenge/src/data3_tv_crop
+  output: /home/giully/Programmazione/calib_challenge/src/data
   selected_frames: /home/giully/Programmazione/calib_challenge/src/config/selected_frames
-  videos: [0, 1, 2, 3, 4]
+  videos: []
   height_divisor: 3
   width_divisor: 3
-  yuv: true 
-  crop: [130, 218, 38, 349]
+  single_tensor: true
+  yuv: false 
+  crop: null #[0.4, 0.2, 0.1, 0.1]
+
+  test_video: 2
