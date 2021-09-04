@@ -26,7 +26,7 @@ class History:
 
     dir: str
     train_videos: list[str]
-    valid_video: str
+    valid_videos: str
     model: torch.nn.Module
     opt: torch.optim
     loss_func: nn.Module
@@ -51,9 +51,10 @@ class History:
         file_txt = os.path.join(self.dir, "history.txt")
 
         valid = len(self.history["valid_loss"]) > 0
-
+        total_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
         with open(file_txt, "w") as f:
             s = f"{repr(self.model)}\n\n"
+            s += f"Model total params: {total_params}\n\n"
             s += f"{repr(self.opt)}\n\n"
             s += f"{repr(self.loss_func)}\n\n"
 
@@ -64,8 +65,8 @@ class History:
             s += f"Batch size: {self.batch_size}\n\n"
 
             s += f"Training videos {self.train_videos}\n"
-            if self.valid_video is not None:
-                s += f"Valid video {self.valid_video}\n\n"
+            if self.valid_videos is not None:
+                s += f"Valid videos {self.valid_videos}\n\n"
 
             s += "Training:\n"
             if valid:
