@@ -10,7 +10,7 @@ def crop(img, y1, y2, x1, x2):
     return img[:, y1 : y2, x1 : x2]
 
 
-class BGRToYUV:
+class BGRtoYUV:
     def __call__(self, img):
         return cv.cvtColor(img, cv.COLOR_BGR2YUV)
 
