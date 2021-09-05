@@ -6,6 +6,7 @@ import utils as ut
 import hydra
 from omegaconf import DictConfig, OmegaConf
 import torch
+from custom_transform import Crop
 
 
 def read_tensors_angles(path):
@@ -38,7 +39,8 @@ def augment(cfg: DictConfig):
             trf_rotation = T.RandomRotation(tuple(trf.degrees), interpolation=InterpolationMode.BILINEAR)
         if trf.translate:
             trf_translate = T.RandomAffine(0, translate=tuple(trf.translations), interpolation=InterpolationMode.BILINEAR)
-
+        if trf.crop:
+            trf_crop = Crop(*list(trf.crop_args))
         
         t = []
         for transform in trf.transforms:
@@ -48,6 +50,8 @@ def augment(cfg: DictConfig):
                 t.append(trf_jitter)
             if transform == "translate":
                 t.append(trf_translate)
+            if transform == "crop":
+                t.append(trf_crop)
         
         t = T.Compose(t)
 
