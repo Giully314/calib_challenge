@@ -1,0 +1,26 @@
+augment:
+  data_dir: /home/giully/Programmazione/calib_challenge/src/data
+  videos: [0, 1, 3, 4]
+  videos_parts: [[0, 1, 2, 3, 4, 5], [0, 1, 2, 3, 4, 5], [0, 1, 2], [0, 1, 2, 3, 4, 5]] 
+
+  output_dir: /home/giully/Programmazione/calib_challenge/src/data_aug3
+
+
+transformations:
+  color_jitter: true
+  brightness: [2, 3]
+  contrast: [1, 3]
+  saturation: 0
+  hue: 0
+
+  rotation: true
+  degrees: [-15, 15]
+
+  translate: true
+  translations: [0.1, 0.1]
+
+  horizontal_flip: false
+  vertical_flip: false
+  gauss_blur: false
+
+  transforms: [rotation, translate, color_jitter]
