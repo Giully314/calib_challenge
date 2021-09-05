@@ -2,7 +2,7 @@ from torchvision.transforms.functional import InterpolationMode
 from models import CalibModel, CalibParams, RMSELoss
 from torch.utils.data import DataLoader
 import torch
-from datasets import VideoDataset, DiskVideoDataset, get_consecutive_frames_ds, get_disk_consecutive_frames_ds
+from datasets import ConsecutiveFramesDataset, VideoDataset, DiskVideoDataset, get_consecutive_frames_ds, get_disk_consecutive_frames_ds
 import training as trn
 from custom_transform import CropVideo, ToOpenCV, RGBtoBGR
 import torchvision.transforms as T
@@ -13,10 +13,11 @@ import random
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from utils import Timer
-from informations import History, GradientFlowVisualization, ActivationMapVisualization
+from informations import History, GradientFlowVisualization, ActivationMapVisualization, TestModel
 import cv2
 
 #TODO ADD LOGGING
+#TODO WRITE BETTER IMPLEMENTATION FOR CONFIG TRANSFORMATIONS ON FLY.
 
 @hydra.main(config_path="config")
 def main(cfg: DictConfig):
@@ -132,7 +133,7 @@ def main(cfg: DictConfig):
     #TODO add crop to validation set.
     valid_dls = None
     if args.valid_model:
-        if trf.transforms is not None:
+        if trf.transforms is not None and trf.crop:
             valid_crop = [trf_crop]
         else:
             valid_crop = None
@@ -171,11 +172,11 @@ def main(cfg: DictConfig):
 
     #TODO add support for passing other parameters to the optimizer
     if args.opt == "adam":
-        opt = torch.optim.Adam(model.parameters(), lr=args.lr)
+        opt = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     elif args.opt == "adamw":
-        opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
+        opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     elif args.opt == "sgd":
-        opt = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
+        opt = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=args.weight_decay)
 
 
     if args.loss == "mse":
@@ -203,7 +204,19 @@ def main(cfg: DictConfig):
 
     if args.test_model:
         #load test data here
-        pass
+        test_transform = None
+        if trf.transforms is not None and trf.crop:
+            test_transform = [trf_crop]
+
+        video_test_path = os.path.join(args.data_dir, str(args.test_video))
+        test_ds = ConsecutiveFramesDataset(os.path.join(video_test_path, "test_video.pt"),
+                    os.path.join(video_test_path, "angles.txt"), args.consecutive_frames, args.skips,
+                    test_transform)
+        
+        test_model = TestModel(args.training_info_dir, os.path.join(video_test_path, "angles.txt"), 
+                        test_ds, model)
+            
+        test_model.test()
     
 
     if activation_map:
