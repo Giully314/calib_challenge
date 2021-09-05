@@ -12,64 +12,6 @@ from dataclasses import dataclass, field
 import shutil
 
 
-#TODO REVISITE THE NEXT 9 FUNCTIONS
-
-
-#from pytorch implementation of EfficientNet https://github.com/lukemelas/EfficientNet-PyTorch
-def round_repeats(repeats, global_params):
-    multiplier = global_params.depth_coeff
-    if not multiplier:
-        return repeats
-    return int(math.ceil(multiplier * repeats))
-
-
-#from pytorch implementation of EfficientNet https://github.com/lukemelas/EfficientNet-PyTorch
-def round_filters(filters, global_params):
-    multiplier = global_params.width_coeff
-    if not multiplier:
-        return filters
-
-    new_filters = filters * multiplier
-    
-    if new_filters < 0.9 * filters:
-        new_filters = filters
-
-    return int(new_filters)
-
-
-def get_width_and_height(x):
-    if isinstance(x, int):
-        return x, x
-    if isinstance(x, list) or isinstance(x, tuple):
-        return x
-    else:
-        raise TypeError()
-
-
-def calculate_output_image_size(input_image_size, stride):
-    if input_image_size is None:
-        return None
-    image_height, image_width = get_width_and_height(input_image_size)
-    stride = stride if isinstance(stride, int) else stride[0]
-    image_height = int(math.ceil(image_height / stride))
-    image_width = int(math.ceil(image_width / stride))
-    return [image_height, image_width]
-
-
-def conv1x1(in_channels: int, out_channels: int, stride: int = 1) -> nn.Conv2d:
-    return nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, bias=False)
-
-def conv2d(in_channels: int, out_channels: int, kernel_size: int, stride: int = 1) -> nn.Conv2d:
-    return nn.Conv2d(in_channels, out_channels, kernel_size, stride=stride, padding=1, bias=False)
-
-def conv2d_layer(in_channels: int, out_channels: int, kernel_size: int, stride: int, pl_kernel: int, pl_stride: int):
-    return (conv2d(in_channels, out_channels, kernel_size, stride), nn.BatchNorm2d(out_channels), 
-            nn.ReLU(), nn.MaxPool2d(pl_kernel, pl_stride))
-
-
-
-
-
 def create_dir(dir: str) -> None:
     Path(dir).mkdir(exist_ok=True, parents=True)
 
