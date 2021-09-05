@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-from torch.utils.data import DataLoader
+# from torch.utils.data import DataLoader, Data
 
 import numpy as np
 
@@ -12,7 +12,7 @@ from datasets import ConsecutiveFramesDataset
 import utils as ut
 
 import matplotlib.pyplot as plt
-from matplotlib.lines import Line2D
+# from matplotlib.lines import Line2D
 
 
 @dataclass
@@ -60,7 +60,7 @@ class History:
 
             if self.scheduler is not None:
                 s += f"{str(type(self.scheduler))}"
-                s += f"\n{self.scheduler}\n\n"
+                s += f"\n{repr(self.scheduler)}\n\n"
 
             s += f"Batch size: {self.batch_size}\n\n"
 
@@ -121,7 +121,7 @@ class History:
         ax.legend(loc="center right", fontsize=12) 
         ax.set_xlabel("Epoch", fontsize=16)
         ax.set_ylabel("Loss", fontsize=16)
-        ax.axis([0, len(epochs)+1, 0, max(max(val_loss), max(train_loss)) + 0.01])
+        ax.axis([0, len(epochs)+1, 0, max(max(val_loss), max(train_loss)) + 0.001])
         
         h_file = os.path.join(self.dir, "training_valid_curve.png")      
         plt.savefig(h_file, dpi=160)
@@ -329,4 +329,80 @@ class GradientFlowVisualization:
 
 
 class TestModel:
-    pass
+    def __init__(self, test_output: str, gt_angles_path: str, ds: ConsecutiveFramesDataset, model: nn.Module):
+        self.test_output = os.path.join(test_output, "results")
+        ut.create_dir(self.test_output)
+        
+        self.gt_angles_path = gt_angles_path
+        self.predictions = os.path.join(self.test_output, "predictions.txt")
+        self.ds = ds
+        self.model = model 
+
+    def test(self):
+        self.eval_save_predictions()
+        r = self.__eval_single_test()
+        self.plot_results(r)
+        
+    #TODO: consider only the last prediction (maybe it's the most accurate) or consider all the predictions?
+    def eval_save_predictions(self):
+        self.model.to(torch.device("cpu"))
+        self.model.eval()
+
+        i = 0
+        preds = []
+        while i < len(self.ds):
+            frames, _ = self.ds[i]
+            preds.append(self.model(frames.unsqueeze(0)).squeeze(0).detach().numpy().reshape(-1, 2))
+            i += self.ds.consecutive_frames
+        
+        preds = np.concatenate(preds, axis=0)
+        np.savetxt(self.predictions, preds)
+
+
+    def __eval_single_test(self):
+        def get_mse(gt, test):
+            test = np.nan_to_num(test)
+            return np.mean(np.nanmean((gt - test)**2, axis=0))
+
+        zero_mses = []
+        mses = []
+
+        gt = np.loadtxt(self.gt_angles_path)
+        zero_mses.append(get_mse(gt, np.zeros_like(gt)))
+
+        test = np.loadtxt(self.predictions)
+        mses.append(get_mse(gt, test))
+
+        percent_err_vs_all_zeros = 100*np.mean(mses)/np.mean(zero_mses)
+        # print(f'YOUR ERROR SCORE IS {percent_err_vs_all_zeros:.2f}% (lower is better)')
+        return percent_err_vs_all_zeros
+
+
+    def plot_results(self, result_perc: int = None):
+        fig, axs = plt.subplots(2, 1, figsize=(12, 10))
+        fig.suptitle(f"GT vs Predictions: error score {result_perc}%")
+
+        gt = np.loadtxt(self.gt_angles_path)
+        preds = np.loadtxt(self.predictions)
+        num_angles = [i for i in range(gt.shape[0])]    
+
+        axs[0].set_title("Pitch")
+        axs[0].plot(num_angles, gt[:, 0], linewidth=2, color='green', label="gt")
+        axs[0].plot(num_angles, preds[:, 0], linewidth=2, color='blue', label="pred")
+        axs[0].set_xlabel("Frame")
+        axs[0].set_ylabel("Angles in radians")
+        axs[0].legend("best")
+        axs[0].set(xlim=(0, len(num_angles) + 1), ylim=(0, 0.1))
+
+        axs[1].set_title("Yaw")
+        axs[1].plot(num_angles, gt[:, 1], linewidth=2, color='green', label="gt")
+        axs[1].plot(num_angles, preds[:, 1], linewidth=2, color='blue', label="pred")
+        axs[1].set_xlabel("Frame")
+        axs[1].set_ylabel("Angles in radians")
+        axs[1].legend("best")
+        axs[1].set(xlim=(0, len(num_angles) + 1), ylim=(0, 0.1))
+
+        plt.savefig(os.path.join(self.test_output, "results.png"), dpi=100)
+        plt.close(fig)
+
+
