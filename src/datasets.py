@@ -70,7 +70,7 @@ class DiskConsecutiveFramesDataset(Dataset):
     
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
         frames = []
-        for i in range(self.consecutive_frames):
+        for i in range(0, self.consecutive_frames * self.skips, self.skips):
             frames.append(torch.load(os.path.join(self.video_path, str(idx + i) + ".pt")))
 
         frames = torch.stack(frames)
