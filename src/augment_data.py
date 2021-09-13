@@ -7,6 +7,7 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 import torch
 from custom_transform import Crop
+import math
 
 
 def read_tensors_angles(path):
@@ -41,6 +42,11 @@ def augment(cfg: DictConfig):
             trf_translate = T.RandomAffine(0, translate=tuple(trf.translations), interpolation=InterpolationMode.BILINEAR)
         if trf.crop:
             trf_crop = Crop(*list(trf.crop_args))
+        if trf.gauss_blur:
+            k = 2 * math.ceil(3 * trf.sigma) + 1
+            trf_gauss_blur = T.GaussianBlur(k, trf.sigma)
+        if trf.affine:
+            trf_affine = T.RandomAffine(tuple(trf.degrees), tuple(trf.translations), interpolation=InterpolationMode.BILINEAR)
         
         t = []
         for transform in trf.transforms:
@@ -52,17 +58,21 @@ def augment(cfg: DictConfig):
                 t.append(trf_translate)
             if transform == "crop":
                 t.append(trf_crop)
+            if transform == "blur":
+                t.append(trf_gauss_blur)
+            if transform == "affine":
+                t.append(trf_affine)
         
         t = T.Compose(t)
 
     videos_aug_path = [os.path.join(args.output_dir, str(video)) for video in videos] 
     ut.create_dirs(videos_aug_path)
 
-    for video in videos_path:
-        print(video)
+    # for video in videos_path:
+    #     print(video)
     
-    for video in videos_aug_path:
-        print(video)
+    # for video in videos_aug_path:
+    #     print(video)
         
 
     for video_path, out_path in zip(videos_path, videos_aug_path):
