@@ -14,7 +14,7 @@ import utils as ut
 import matplotlib.pyplot as plt
 # from matplotlib.lines import Line2D
 
-
+#TODO: plot angles of training video vs predicted angles on training video
 @dataclass
 class History:
     """
@@ -95,8 +95,9 @@ class History:
         train_loss = self.history["train_loss"]
         epochs = [i for i in range(len(train_loss))]
 
-        fig, ax = plt.subplots(figsize=(14, 12))
+        fig, ax = plt.subplots(figsize=(14, 12), dpi=160)
         ax.plot(epochs, train_loss, "b-", label="TrainLoss")
+        ax.set_ylim(0, min(train_loss) * 10)
         ax.legend(loc="center right", fontsize=12) 
         ax.set_xlabel("Epoch", fontsize=16)
         lr = self.opt.param_groups[0]["lr"]
@@ -115,13 +116,13 @@ class History:
         val_loss = self.history["valid_loss"]
         epochs = [i for i in range(len(train_loss))]
 
-        fig, ax = plt.subplots(figsize=(14, 12))
+        fig, ax = plt.subplots(figsize=(14, 12), dpi=160)
         ax.plot(epochs, train_loss, "b-", label="TrainLoss")
         ax.plot(epochs, val_loss, "g-", label="ValidLoss")
         ax.legend(loc="center right", fontsize=12) 
         ax.set_xlabel("Epoch", fontsize=16)
         ax.set_ylabel("Loss", fontsize=16)
-        ax.axis([0, len(epochs)+1, 0, max(max(val_loss), max(train_loss)) + 0.001])
+        ax.axis([0, len(epochs)+1, 0, max(max(val_loss), max(train_loss))])
         
         h_file = os.path.join(self.dir, "training_valid_curve.png")      
         plt.savefig(h_file, dpi=160)
@@ -195,9 +196,10 @@ class ActivationMapVisualization:
             ut.create_dir(d)
             n_cols = 3
             n_rows = activations[0].shape[1] // n_cols
-            fig, ax_array = plt.subplots(n_rows, n_cols, figsize=(14, 12))
-    
+
+            #TODO: clear the figure instaed of creating a new one (maybe it's better in terms of performance)
             for i in range(len(activations)):
+                fig, ax_array = plt.subplots(n_rows, n_cols, figsize=(14, 12), dpi=160)
                 file = os.path.join(d, str(i) + ".png")
 
                 act = activations[i].squeeze().cpu()
@@ -206,10 +208,7 @@ class ActivationMapVisualization:
                         ax_array[i, j].imshow(act[i * n_cols + j], cmap='gray')
                 
                 plt.savefig(file, dpi=160)
-                plt.cla()
-                plt.clf()
-
-            plt.close(fig)
+                plt.close(fig)
 
 
     def trigger_activation_maps(self, dss: list[ConsecutiveFramesDataset], frames: list[int]):  
@@ -317,7 +316,7 @@ class GradientFlowVisualization:
 
         file = os.path.join(self.dir, "gradient_flow.png")
         # plt.legend(loc='upper right')
-        plt.savefig(file, bbox_inches="tight")
+        plt.savefig(file)
         plt.close(self.fig)
         self.fig = None
         self.ax = None
@@ -379,7 +378,7 @@ class TestModel:
 
 
     def plot_results(self, result_perc: int = None):
-        fig, axs = plt.subplots(2, 1, figsize=(12, 10))
+        fig, axs = plt.subplots(2, 1, figsize=(14, 12), dpi=160)
         fig.suptitle(f"GT vs Predictions: error score {result_perc}%")
 
         gt = np.loadtxt(self.gt_angles_path)
