@@ -1,3 +1,2 @@
 # calib_challenge
-Commaai calibration challenge
-Primo tentativo fallito miseramente.
+A try on the Commaai calibration challenge.
